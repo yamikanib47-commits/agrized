@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { AdminBottomNav } from '@/app/admin/page'
+import AdminBottomNav from '@/app/components/AdminBottomNav'
 
 export default function AdminOrders() {
   const router = useRouter()

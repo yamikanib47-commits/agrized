@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { FarmerBottomNav } from '@/app/farmer/dashboard/page'
+import FarmerBottomNav from '@/app/components/FarmerBottomNav'
 
 export default function FarmerProduce() {
   const router = useRouter()

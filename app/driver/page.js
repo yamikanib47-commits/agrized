@@ -2,39 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-
-export function DriverBottomNav({ active, router }) {
-  const tabs = [
-    { key: 'home', label: 'Home', route: '/driver', icon: (a) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M3 10.5L11 3l8 7.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1v-8.5z" fill={a ? '#2D6A4F' : 'none'} stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
-      </svg>
-    )},
-    { key: 'history', label: 'History', route: '/driver/history', icon: (a) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <rect x="3" y="4" width="16" height="15" rx="2" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
-        <path d="M3 9h16" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
-      </svg>
-    )},
-    { key: 'profile', label: 'Profile', route: '/profile', icon: (a) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <circle cx="11" cy="8" r="4" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
-        <path d="M4 19c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    )},
-  ]
-
-  return (
-    <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', padding: '8px 16px 20px', display: 'flex', justifyContent: 'space-around', alignItems: 'center', zIndex: 100, maxWidth: '480px', margin: '0 auto' }}>
-      {tabs.map(tab => (
-        <button key={tab.key} onClick={() => router.push(tab.route)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 24px' }}>
-          {tab.icon(active === tab.key)}
-          <span style={{ fontSize: '10px', color: active === tab.key ? '#2D6A4F' : '#888', fontWeight: active === tab.key ? '600' : '400' }}>{tab.label}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
+import DriverBottomNav from '@/app/components/DriverBottomNav'
 
 export default function DriverHome() {
   const router = useRouter()
@@ -44,22 +12,22 @@ export default function DriverHome() {
 
   useEffect(() => {
     const load = async () => {
-        const saved = localStorage.getItem('agrized_driver')
-        if (!saved) { router.push('/driver/login'); return }
-        const driverSession = JSON.parse(saved)
-        
-        const { data: driverData } = await supabase
-          .from('drivers')
-          .select('id, name, phone')
-          .eq('id', driverSession.id)
-          .single()
-        
-        if (!driverData) {
-          localStorage.removeItem('agrized_driver')
-          router.push('/driver/login')
-          return
-        }
-        setDriver(driverData)
+      const saved = localStorage.getItem('agrized_driver')
+      if (!saved) { router.push('/driver/login'); return }
+      const driverSession = JSON.parse(saved)
+
+      const { data: driverData } = await supabase
+        .from('drivers')
+        .select('id, name, phone')
+        .eq('id', driverSession.id)
+        .single()
+
+      if (!driverData) {
+        localStorage.removeItem('agrized_driver')
+        router.push('/driver/login')
+        return
+      }
+      setDriver(driverData)
 
       const { data: orderData } = await supabase
         .from('orders')
@@ -102,7 +70,6 @@ export default function DriverHome() {
     <div style={{ minHeight: '100vh', background: '#F5F0E8', paddingBottom: '90px' }}>
       <div style={{ maxWidth: '480px', margin: '0 auto', padding: '28px 16px 0' }}>
 
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
           <div>
             <p style={{ fontSize: '13px', color: '#888', margin: '0' }}>Good morning,</p>
@@ -114,7 +81,6 @@ export default function DriverHome() {
         </div>
         <p style={{ fontSize: '13px', color: '#888', margin: '0 0 20px' }}>{orders.length} deliveries assigned today</p>
 
-        {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px' }}>
           <div style={{ background: '#2D6A4F', borderRadius: '16px', padding: '16px' }}>
             <p style={{ fontSize: '11px', color: '#D8F3DC', margin: '0 0 4px', fontWeight: '600' }}>To deliver</p>
@@ -126,7 +92,6 @@ export default function DriverHome() {
           </div>
         </div>
 
-        {/* Deliveries */}
         <p style={{ fontSize: '11px', color: '#888', fontWeight: '600', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>My deliveries</p>
 
         {orders.length === 0 ? (
@@ -140,11 +105,7 @@ export default function DriverHome() {
             const s = statusStyle(order.status)
             const isActive = order.status === 'in_transit'
             return (
-              <div
-                key={order.id}
-                onClick={() => router.push('/driver/' + order.id)}
-                style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px', cursor: 'pointer', borderLeft: isActive ? '3px solid #2D6A4F' : 'none', opacity: order.status === 'delivered' ? 0.6 : 1 }}
-              >
+              <div key={order.id} onClick={() => router.push('/driver/' + order.id)} style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px', cursor: 'pointer', borderLeft: isActive ? '3px solid #2D6A4F' : 'none', opacity: order.status === 'delivered' ? 0.6 : 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
                   <div>
                     <p style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>#{order.id.slice(-4).toUpperCase()}</p>

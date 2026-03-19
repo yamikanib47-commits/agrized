@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { DriverBottomNav } from '@/app/driver/page'
+import DriverBottomNav from '@/app/components/DriverBottomNav'
 
 export default function DriverHistory() {
   const router = useRouter()
