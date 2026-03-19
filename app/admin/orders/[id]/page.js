@@ -2,6 +2,13 @@
 import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import {
+  notifyCustomerConfirmed,
+  notifyCustomerInTransit,
+  notifyFarmerNewOrder,
+  notifyFarmerDriverComing,
+  notifyDriverAssigned
+} from '@/lib/notify'
 
 export default function AdminOrderDetail({ params }) {
   const { id } = React.use(params)
@@ -27,15 +34,13 @@ export default function AdminOrderDetail({ params }) {
 
       const { data: itemData } = await supabase
         .from('order_items')
-        .select('id, quantity, unit_price, farmer_status, produce(name, unit), farmers(farm_name)')
+        .select('id, quantity, unit_price, farmer_status, produce(name, unit), farmers(farm_name, contact)')
         .eq('order_id', id)
 
       setItems(itemData || [])
 
       const { data: driverData } = await supabase
-        .from('drivers')
-        .select('id, name, phone')
-        .order('name')
+        .from('drivers').select('id, name, phone').order('name')
 
       setDrivers(driverData || [])
       setLoading(false)
@@ -73,11 +78,9 @@ export default function AdminOrderDetail({ params }) {
     const customerPhone = order.customers?.users?.phone_number || order.customers?.phone || ''
     const orderRef = id.slice(-4).toUpperCase()
     const customerName = order.customers?.users?.display_name || 'Customer'
-
     const itemLines = items.map(item =>
       `✅ ${item.quantity} ${item.produce?.unit} ${item.produce?.name} — K ${(item.quantity * item.unit_price).toFixed(2)}`
     ).join('\n')
-
     const message = [
       `🌿 *Agrized Order Confirmation*`,
       `Order #${orderRef} — ${customerName}`,
@@ -90,9 +93,15 @@ export default function AdminOrderDetail({ params }) {
       `Your driver will be with you shortly.`,
       `Thank you for ordering with Agrized! 🚜`
     ].join('\n')
-
     return 'https://wa.me/' + customerPhone + '?text=' + encodeURIComponent(message)
   }
+
+  // Unique farmers in this order
+  const uniqueFarmers = items.reduce((acc, item) => {
+    const key = item.farmers?.farm_name
+    if (key && !acc.find(f => f.farm_name === key)) acc.push(item.farmers)
+    return acc
+  }, [])
 
   const statusStyle = (status) => {
     const map = {
@@ -114,14 +123,6 @@ export default function AdminOrderDetail({ params }) {
     return map[status] || map.pending
   }
 
-  const timeAgo = (ts) => {
-    const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
-    if (diff < 60) return `${diff}s ago`
-    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
-    if (diff < 86400) return `${Math.floor(diff / 3600)}hr ago`
-    return `${Math.floor(diff / 86400)}d ago`
-  }
-
   const farmerGroups = items.reduce((acc, item) => {
     const key = item.farmers?.farm_name || 'Unknown'
     if (!acc[key]) acc[key] = { items: [], status: item.farmer_status }
@@ -129,6 +130,14 @@ export default function AdminOrderDetail({ params }) {
     if (item.farmer_status === 'pending') acc[key].status = 'pending'
     return acc
   }, {})
+
+  const timeAgo = (ts) => {
+    const diff = Math.floor((Date.now() - new Date(ts)) / 1000)
+    if (diff < 60) return `${diff}s ago`
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`
+    if (diff < 86400) return `${Math.floor(diff / 3600)}hr ago`
+    return `${Math.floor(diff / 86400)}d ago`
+  }
 
   const assignedDriver = drivers.find(d => d.id === (selectedDriver || order?.driver_id))
 
@@ -160,7 +169,7 @@ export default function AdminOrderDetail({ params }) {
           </div>
         </div>
 
-        {/* Customer info */}
+        {/* Customer */}
         <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
           <p style={{ fontSize: '11px', color: '#888', margin: '0 0 8px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Customer</p>
           <p style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 4px' }}>{customerName}</p>
@@ -177,7 +186,7 @@ export default function AdminOrderDetail({ params }) {
           </div>
         </div>
 
-        {/* Order items */}
+        {/* Items */}
         <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
           <p style={{ fontSize: '11px', color: '#888', margin: '0 0 10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Items</p>
           {items.map((item, i) => (
@@ -195,26 +204,20 @@ export default function AdminOrderDetail({ params }) {
           </div>
         </div>
 
-        {/* Driver assignment — pending only */}
+        {/* Driver assignment */}
         {order.status === 'pending' && (
           <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
             <p style={{ fontSize: '11px', color: '#888', margin: '0 0 10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Assign driver</p>
             <div style={{ background: '#F5F0E8', borderRadius: '12px' }}>
-              <select
-                value={selectedDriver}
-                onChange={e => setSelectedDriver(e.target.value)}
-                style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', padding: '12px 14px', fontSize: '14px', color: selectedDriver ? '#1a1a1a' : '#888', borderRadius: '12px', cursor: 'pointer', appearance: 'none' }}
-              >
+              <select value={selectedDriver} onChange={e => setSelectedDriver(e.target.value)} style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', padding: '12px 14px', fontSize: '14px', color: selectedDriver ? '#1a1a1a' : '#888', borderRadius: '12px', cursor: 'pointer', appearance: 'none' }}>
                 <option value="">Select driver...</option>
-                {drivers.map(d => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
+                {drivers.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
               </select>
             </div>
           </div>
         )}
 
-        {/* Assigned driver — post-pending */}
+        {/* Assigned driver */}
         {order.status !== 'pending' && assignedDriver && (
           <div style={{ background: '#E8F5E9', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
             <p style={{ fontSize: '11px', color: '#2D6A4F', margin: '0 0 10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Assigned driver</p>
@@ -251,24 +254,66 @@ export default function AdminOrderDetail({ params }) {
           </div>
         )}
 
-        {/* WhatsApp invoice */}
-        {(order.status === 'confirmed' || order.status === 'in_transit') && (
-          <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
-            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Send invoice</p>
-            <a href={buildWhatsAppInvoice()} target="_blank" rel="noreferrer" style={{ width: '100%', background: '#25D366', borderRadius: '20px', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textDecoration: 'none' }}>
-              <span style={{ fontSize: '18px' }}>💬</span>
-              <span style={{ fontSize: '14px', color: '#fff', fontWeight: '700' }}>Send invoice via WhatsApp</span>
-            </a>
+        {/* ── NOTIFICATIONS ── */}
+        <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
+          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Send notifications</p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+            {/* Customer — confirmed */}
+            {order.status === 'confirmed' && (
+              <a href={notifyCustomerConfirmed({ customerPhone, orderId: id, items, total: order.total_zmw })} target="_blank" rel="noreferrer" style={{ background: '#25D366', borderRadius: '20px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                <span style={{ fontSize: '16px' }}>💬</span>
+                <span style={{ fontSize: '13px', color: '#fff', fontWeight: '600' }}>Notify customer — order confirmed</span>
+              </a>
+            )}
+
+            {/* Farmers — new order */}
+            {order.status === 'confirmed' && uniqueFarmers.map(farmer => (
+              <a key={farmer.farm_name} href={notifyFarmerNewOrder({ farmerPhone: farmer.contact, orderId: id, items: items.filter(i => i.farmers?.farm_name === farmer.farm_name) })} target="_blank" rel="noreferrer" style={{ background: '#E8F5E9', borderRadius: '20px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                <span style={{ fontSize: '16px' }}>🌿</span>
+                <span style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600' }}>Notify {farmer.farm_name}</span>
+              </a>
+            ))}
+
+            {/* Driver — assigned */}
+            {order.status === 'confirmed' && assignedDriver && (
+              <a href={notifyDriverAssigned({ driverPhone: assignedDriver.phone, orderId: id, customerName, address: order.delivery_address, total: order.total_zmw })} target="_blank" rel="noreferrer" style={{ background: '#E3F2FD', borderRadius: '20px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                <span style={{ fontSize: '16px' }}>📦</span>
+                <span style={{ fontSize: '13px', color: '#1565C0', fontWeight: '600' }}>Notify driver — delivery assigned</span>
+              </a>
+            )}
+
+            {/* Customer — in transit */}
+            {order.status === 'in_transit' && (
+              <a href={notifyCustomerInTransit({ customerPhone, orderId: id, driverName: assignedDriver?.name || 'Driver', driverPhone: assignedDriver?.phone || '' })} target="_blank" rel="noreferrer" style={{ background: '#25D366', borderRadius: '20px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                <span style={{ fontSize: '16px' }}>🚚</span>
+                <span style={{ fontSize: '13px', color: '#fff', fontWeight: '600' }}>Notify customer — out for delivery</span>
+              </a>
+            )}
+
+            {/* Farmers — driver coming */}
+            {order.status === 'in_transit' && uniqueFarmers.map(farmer => (
+              <a key={farmer.farm_name} href={notifyFarmerDriverComing({ farmerPhone: farmer.contact, orderId: id, driverName: assignedDriver?.name || 'Driver' })} target="_blank" rel="noreferrer" style={{ background: '#E8F5E9', borderRadius: '20px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                <span style={{ fontSize: '16px' }}>🚗</span>
+                <span style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600' }}>Notify {farmer.farm_name} — driver coming</span>
+              </a>
+            ))}
+
+            {/* Invoice */}
+            {(order.status === 'confirmed' || order.status === 'in_transit') && (
+              <a href={buildWhatsAppInvoice()} target="_blank" rel="noreferrer" style={{ background: '#F5F0E8', borderRadius: '20px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', textDecoration: 'none' }}>
+                <span style={{ fontSize: '16px' }}>🧾</span>
+                <span style={{ fontSize: '13px', color: '#888', fontWeight: '600' }}>Send invoice to customer</span>
+              </a>
+            )}
+
           </div>
-        )}
+        </div>
 
         {/* Cancel */}
         {(order.status === 'pending' || order.status === 'confirmed') && (
-          <button
-            onClick={handleCancel}
-            disabled={saving}
-            style={{ width: '100%', background: 'transparent', border: '1.5px solid #E63946', borderRadius: '20px', padding: '12px', fontSize: '14px', color: '#E63946', fontWeight: '600', cursor: 'pointer', marginBottom: '12px' }}
-          >
+          <button onClick={handleCancel} disabled={saving} style={{ width: '100%', background: 'transparent', border: '1.5px solid #E63946', borderRadius: '20px', padding: '12px', fontSize: '14px', color: '#E63946', fontWeight: '600', cursor: 'pointer', marginBottom: '12px' }}>
             Cancel order
           </button>
         )}
@@ -278,22 +323,14 @@ export default function AdminOrderDetail({ params }) {
       {/* Action buttons */}
       {order.status === 'pending' && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', padding: '12px 16px 24px', maxWidth: '480px', margin: '0 auto' }}>
-          <button
-            onClick={handleConfirm}
-            disabled={saving || !selectedDriver}
-            style={{ width: '100%', background: saving || !selectedDriver ? '#52B788' : '#2D6A4F', color: '#fff', border: 'none', borderRadius: '28px', padding: '16px', fontSize: '16px', fontWeight: '600', cursor: saving || !selectedDriver ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif' }}
-          >
+          <button onClick={handleConfirm} disabled={saving || !selectedDriver} style={{ width: '100%', background: saving || !selectedDriver ? '#52B788' : '#2D6A4F', color: '#fff', border: 'none', borderRadius: '28px', padding: '16px', fontSize: '16px', fontWeight: '600', cursor: saving || !selectedDriver ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif' }}>
             {saving ? 'Saving...' : 'Confirm & assign driver'}
           </button>
         </div>
       )}
       {order.status === 'confirmed' && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', padding: '12px 16px 24px', maxWidth: '480px', margin: '0 auto' }}>
-          <button
-            onClick={handleMarkInTransit}
-            disabled={saving}
-            style={{ width: '100%', background: saving ? '#90CAF9' : '#1565C0', color: '#fff', border: 'none', borderRadius: '28px', padding: '16px', fontSize: '16px', fontWeight: '600', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif' }}
-          >
+          <button onClick={handleMarkInTransit} disabled={saving} style={{ width: '100%', background: saving ? '#90CAF9' : '#1565C0', color: '#fff', border: 'none', borderRadius: '28px', padding: '16px', fontSize: '16px', fontWeight: '600', cursor: saving ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif' }}>
             {saving ? 'Saving...' : 'Mark as in transit'}
           </button>
         </div>

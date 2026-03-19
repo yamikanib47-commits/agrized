@@ -16,13 +16,16 @@ export default function DriverDelivery({ params }) {
   const [items, setItems] = useState([])
   const [network, setNetwork] = useState('airtel')
   const [reference, setReference] = useState('')
-  const [step, setStep] = useState('detail') // detail | collecting | confirm | done
+  const [step, setStep] = useState('detail')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     const load = async () => {
+      const saved = localStorage.getItem('agrized_driver')
+      if (!saved) { router.push('/driver/login'); return }
+
       const { data: orderData } = await supabase
         .from('orders')
         .select('*, customers(id, phone, delivery_address, users(display_name, phone_number))')
@@ -47,7 +50,6 @@ export default function DriverDelivery({ params }) {
     setSaving(true)
     setError('')
 
-    // Call Lipila API
     const referenceId = 'AGR-' + Date.now()
     const customerPhone = order.customers?.users?.phone_number || order.customers?.phone
 
@@ -68,7 +70,6 @@ export default function DriverDelivery({ params }) {
       const data = JSON.parse(text)
       if (!res.ok) throw new Error(data.error || 'Payment initiation failed')
     } catch (e) {
-      // In dev — proceed anyway so we can test the flow
       console.warn('Lipila error (dev):', e.message)
     }
 
@@ -133,8 +134,6 @@ export default function DriverDelivery({ params }) {
     return 'https://wa.me/' + customerPhone + '?text=' + encodeURIComponent(message)
   }
 
-  const buildAdminWhatsAppInvoice = () => buildWhatsAppInvoice()
-
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <p style={{ color: '#2D6A4F', fontFamily: 'Georgia, serif' }}>Loading...</p>
@@ -158,7 +157,6 @@ export default function DriverDelivery({ params }) {
           {reference && <p style={{ fontSize: '12px', color: '#888', margin: '0' }}>Ref: {reference}</p>}
         </div>
 
-        {/* Send WhatsApp invoice */}
         <div style={{ background: '#fff', borderRadius: '16px', padding: '16px', marginBottom: '12px' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 10px' }}>Send receipt to customer</p>
           <a href={buildWhatsAppInvoice()} target="_blank" rel="noreferrer" style={{ width: '100%', background: '#25D366', borderRadius: '20px', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textDecoration: 'none' }}>
@@ -189,7 +187,6 @@ export default function DriverDelivery({ params }) {
           <p style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: '700', color: '#1a1a1a', margin: '0' }}>Confirm delivery</p>
         </div>
 
-        {/* Waiting */}
         <div style={{ background: '#E3F2FD', borderRadius: '16px', padding: '16px', marginBottom: '16px', textAlign: 'center' }}>
           <p style={{ fontSize: '15px', fontWeight: '700', color: '#1565C0', margin: '0 0 6px' }}>⏳ Waiting for payment</p>
           <p style={{ fontSize: '13px', color: '#888', margin: '0', lineHeight: '1.5' }}>
@@ -197,7 +194,6 @@ export default function DriverDelivery({ params }) {
           </p>
         </div>
 
-        {/* Manual reference */}
         <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Mobile money reference</p>
         <div style={{ background: '#fff', borderRadius: '14px', padding: '14px 16px', marginBottom: '6px' }}>
           <input
@@ -211,7 +207,6 @@ export default function DriverDelivery({ params }) {
 
         {error && <p style={{ fontSize: '13px', color: '#E63946', margin: '0 0 12px' }}>{error}</p>}
 
-        {/* Order summary */}
         <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '16px' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 10px' }}>Order summary</p>
           {items.map(item => (
