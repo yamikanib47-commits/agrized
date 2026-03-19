@@ -14,7 +14,6 @@ export default function Profile() {
   const [stats, setStats] = useState({ delivered: 0, collected: 0 })
   const [loading, setLoading] = useState(true)
 
-  // Edit states
   const [editingAddress, setEditingAddress] = useState(false)
   const [editingFarm, setEditingFarm] = useState(false)
   const [changingPin, setChangingPin] = useState(false)
@@ -29,14 +28,12 @@ export default function Profile() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  // Photo upload
   const avatarRef = useRef()
   const bannerRef = useRef()
 
   useEffect(() => { load() }, [])
 
   const load = async () => {
-    // Driver — localStorage session
     const driverSession = localStorage.getItem('agrized_driver')
     if (driverSession) {
       const ds = JSON.parse(driverSession)
@@ -55,7 +52,6 @@ export default function Profile() {
         .gte('paid_at', today.toISOString())
 
       const totalCollected = (deliveredOrders || []).reduce((sum, o) => sum + parseFloat(o.total_zmw || 0), 0)
-
       setDriver(driverData)
       setStats({ delivered: deliveredOrders?.length || 0, collected: totalCollected })
       setRole('driver')
@@ -63,7 +59,6 @@ export default function Profile() {
       return
     }
 
-    // All other roles — Supabase auth
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/onboarding'); return }
 
@@ -87,14 +82,12 @@ export default function Profile() {
         .eq('user_id', profileData.id)
         .single()
       setCustomer(customerData)
-
       if (customerData?.delivery_address) {
         const parts = customerData.delivery_address.split(', ')
         setAddress(parts[0] || '')
         setArea(parts[1] || '')
         setLandmark(parts[2] || '')
       }
-
       const { data: orderData } = await supabase
         .from('orders')
         .select('id, status, total_zmw, created_at')
@@ -119,7 +112,7 @@ export default function Profile() {
       const { count: ordersToday } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', new Date(new Date().setHours(0,0,0,0)).toISOString())
+        .gte('created_at', new Date(new Date().setHours(0, 0, 0, 0)).toISOString())
       const { count: farmersTotal } = await supabase
         .from('farmers')
         .select('*', { count: 'exact', head: true })
@@ -161,8 +154,6 @@ export default function Profile() {
     if (newPin !== confirmPin) { setError('PINs do not match'); return }
     setSaving(true)
     await supabase.from('drivers').update({ pin: newPin }).eq('id', driver.id)
-    const session = JSON.parse(localStorage.getItem('agrized_driver'))
-    localStorage.setItem('agrized_driver', JSON.stringify({ ...session }))
     setSaving(false); setSuccess('PIN updated'); setChangingPin(false)
     setNewPin(''); setConfirmPin('')
     setTimeout(() => setSuccess(''), 2000)
@@ -207,7 +198,7 @@ export default function Profile() {
 
   const inputStyle = { width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '15px', color: '#1a1a1a' }
   const fieldWrap = { background: '#F5F0E8', borderRadius: '12px', padding: '12px 14px', marginBottom: '8px' }
-  const sectionLabel = { fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }
+  const sectionLabel = { fontSize: '11px', color: '#888', margin: '0 0 8px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }
 
   if (loading) return (
     <div style={{ minHeight: '100vh', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -227,7 +218,7 @@ export default function Profile() {
           <>
             <div
               onClick={() => bannerRef.current.click()}
-              style={{ width: '100%', height: '120px', background: farmer?.banner_url ? 'transparent' : '#2D6A4F', borderRadius: '20px', marginBottom: '28px', overflow: 'hidden', position: 'relative', cursor: 'pointer' }}
+              style={{ width: '100%', height: '120px', background: '#2D6A4F', borderRadius: '20px', marginBottom: '28px', overflow: 'hidden', position: 'relative', cursor: 'pointer' }}
             >
               {farmer?.banner_url
                 ? <img src={farmer.banner_url} alt="banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
@@ -251,7 +242,7 @@ export default function Profile() {
           </>
         )}
 
-        {/* ── ALL ROLES: profile card ── */}
+        {/* ── ALL ROLES except farmer: profile card ── */}
         {role !== 'farmer' && (
           <div style={{ background: '#2D6A4F', borderRadius: '20px', padding: '20px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
             <div style={{ position: 'absolute', right: '-10px', top: '-10px', width: '80px', height: '80px', background: 'rgba(255,255,255,0.08)', borderRadius: '50%' }}></div>
@@ -272,7 +263,7 @@ export default function Profile() {
           </div>
         )}
 
-        {/* Farmer name shown below banner */}
+        {/* Farmer name below banner */}
         {role === 'farmer' && (
           <div style={{ marginBottom: '16px' }}>
             <p style={{ fontFamily: 'Georgia, serif', fontSize: '20px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>{farmer?.farm_name || 'My Farm'}</p>
@@ -280,7 +271,7 @@ export default function Profile() {
           </div>
         )}
 
-        {/* ── SUCCESS / ERROR ── */}
+        {/* Success / error */}
         {success && (
           <div style={{ background: '#E8F5E9', borderRadius: '12px', padding: '10px 14px', marginBottom: '12px' }}>
             <p style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600', margin: '0' }}>✓ {success}</p>
@@ -297,19 +288,15 @@ export default function Profile() {
         ══════════════════════════════════════════ */}
         {role === 'customer' && (
           <>
-            {/* Delivery address */}
             <p style={sectionLabel}>Delivery address</p>
             <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '14px' }}>
               {!editingAddress ? (
                 <>
-                  {customer?.delivery_address ? (
-                    <>
-                      <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 4px' }}>{customer.delivery_address}</p>
-                    </>
-                  ) : (
-                    <p style={{ fontSize: '13px', color: '#888', margin: '0 0 8px' }}>No address saved yet</p>
-                  )}
-                  <p onClick={() => setEditingAddress(true)} style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600', cursor: 'pointer', margin: '6px 0 0' }}>
+                  {customer?.delivery_address
+                    ? <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 6px' }}>{customer.delivery_address}</p>
+                    : <p style={{ fontSize: '13px', color: '#888', margin: '0 0 8px' }}>No address saved yet</p>
+                  }
+                  <p onClick={() => setEditingAddress(true)} style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600', cursor: 'pointer', margin: '0' }}>
                     {customer?.delivery_address ? 'Edit address →' : 'Add address →'}
                   </p>
                 </>
@@ -326,7 +313,6 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Order history */}
             <p style={sectionLabel}>Recent orders</p>
             <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', marginBottom: '14px' }}>
               {orders.length === 0 ? (
@@ -337,7 +323,7 @@ export default function Profile() {
                 orders.map((order, i) => {
                   const s = statusStyle(order.status)
                   return (
-                    <div key={order.id} onClick={() => router.push('/orders/' + order.id)} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: i < orders.length - 1 ? '1px solid #F5F0E8' : 'none', cursor: 'pointer' }}>
+                    <div key={order.id} onClick={() => router.push('/orders')} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: i < orders.length - 1 ? '1px solid #F5F0E8' : 'none', cursor: 'pointer' }}>
                       <div>
                         <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>#{order.id.slice(-4).toUpperCase()}</p>
                         <p style={{ fontSize: '11px', color: '#888', margin: '0' }}>K {parseFloat(order.total_zmw).toFixed(2)}</p>
@@ -349,6 +335,14 @@ export default function Profile() {
                   )
                 })
               )}
+            </div>
+
+            <div onClick={() => router.push('/orders')} style={{ background: '#fff', borderRadius: '16px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>📦</span>
+                <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: '0' }}>View all orders</p>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/></svg>
             </div>
           </>
         )}
@@ -363,10 +357,10 @@ export default function Profile() {
               {!editingFarm ? (
                 <>
                   {[
-                    ['Farm name', farmer?.farm_name],
-                    ['District', farmer?.districts?.name],
+                    ['Farm name',     farmer?.farm_name],
+                    ['District',      farmer?.districts?.name],
                     ['Produce types', farmer?.produce_types],
-                    ['Contact', farmer?.contact ? '+' + farmer.contact : '—'],
+                    ['Contact',       farmer?.contact ? '+' + farmer.contact : '—'],
                   ].map(([label, val]) => (
                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                       <span style={{ fontSize: '12px', color: '#888' }}>{label}</span>
@@ -389,7 +383,6 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Farm photos */}
             <p style={sectionLabel}>Farm photos</p>
             <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '14px' }}>
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -399,7 +392,7 @@ export default function Profile() {
                     <span style={{ fontSize: '9px', color: '#fff' }}>Edit</span>
                   </div>
                 </div>
-                <div onClick={() => avatarRef.current.click()} style={{ width: '70px', height: '70px', background: farmer?.avatar_url ? 'transparent' : '#D8F3DC', borderRadius: '50%', overflow: 'hidden', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '700', color: '#2D6A4F', flexShrink: 0, border: '2px solid #F5F0E8', position: 'relative' }}>
+                <div onClick={() => avatarRef.current.click()} style={{ width: '70px', height: '70px', background: farmer?.avatar_url ? 'transparent' : '#D8F3DC', borderRadius: '50%', overflow: 'hidden', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', fontWeight: '700', color: '#2D6A4F', flexShrink: 0, border: '2px solid #F5F0E8' }}>
                   {farmer?.avatar_url ? <img src={farmer.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/> : initials(farmer?.farm_name || '')}
                 </div>
               </div>
@@ -425,7 +418,6 @@ export default function Profile() {
               </div>
             </div>
 
-            {/* Change PIN */}
             <p style={sectionLabel}>Security</p>
             <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '14px' }}>
               {!changingPin ? (
@@ -454,7 +446,6 @@ export default function Profile() {
               )}
             </div>
 
-            {/* Delivery history link */}
             <p style={sectionLabel}>History</p>
             <div onClick={() => router.push('/driver/history')} style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -471,7 +462,7 @@ export default function Profile() {
         ══════════════════════════════════════════ */}
         {role === 'admin' && (
           <>
-            <p style={sectionLabel}>Platform overview</p>
+            <p style={sectionLabel}>Platform today</p>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
               <div style={{ background: '#fff', borderRadius: '16px', padding: '14px' }}>
                 <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px', fontWeight: '600' }}>Orders today</p>
@@ -482,12 +473,28 @@ export default function Profile() {
                 <p style={{ fontSize: '26px', fontWeight: '700', color: '#2D6A4F', margin: '0' }}>{stats.collected}</p>
               </div>
             </div>
-            <div onClick={() => router.push('/admin')} style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <span style={{ fontSize: '20px' }}>⚙️</span>
-                <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: '0' }}>Admin panel</p>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/></svg>
+
+            <p style={sectionLabel}>Quick access</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+              {[
+                { label: 'Admin panel',      emoji: '📋', route: '/admin' },
+                { label: 'Manage districts', emoji: '🌍', route: '/admin/districts' },
+                { label: 'Manage drivers',   emoji: '🚚', route: '/admin/drivers' },
+                { label: 'Farmer approvals', emoji: '🌿', route: '/admin/farmers' },
+                { label: 'All orders',       emoji: '📦', route: '/admin/orders' },
+              ].map(item => (
+                <div
+                  key={item.route}
+                  onClick={() => router.push(item.route)}
+                  style={{ background: '#fff', borderRadius: '16px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ fontSize: '20px' }}>{item.emoji}</span>
+                    <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: '0' }}>{item.label}</p>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4l4 4-4 4" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                </div>
+              ))}
             </div>
           </>
         )}
