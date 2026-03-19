@@ -2,363 +2,157 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { AdminBottomNav } from '@/app/admin/page'
 
-export function FarmerBottomNav({ active, router }) {
-  const tabs = [
-    { key: 'home', label: 'Home', route: '/farmer/dashboard', icon: (active) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M3 10.5L11 3l8 7.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1v-8.5z" fill={active ? '#2D6A4F' : 'none'} stroke={active ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
-      </svg>
-    )},
-    { key: 'orders', label: 'Orders', route: '/farmer/orders', icon: (active) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <rect x="3" y="4" width="16" height="15" rx="2" stroke={active ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
-        <path d="M3 9h16" stroke={active ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
-        <path d="M8 2v3M14 2v3" stroke={active ? '#2D6A4F' : '#888'} strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    )},
-    { key: 'add', label: '', route: '/farmer/produce/add', icon: () => null },
-    { key: 'produce', label: 'Produce', route: '/farmer/produce', icon: (active) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <path d="M4 6h14M4 11h9M4 16h11" stroke={active ? '#2D6A4F' : '#888'} strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    )},
-    { key: 'profile', label: 'Profile', route: '/farmer/profile', icon: (active) => (
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-        <circle cx="11" cy="8" r="4" stroke={active ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
-        <path d="M4 19c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke={active ? '#2D6A4F' : '#888'} strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    )},
-  ]
-
-  return (
-    <div style={{
-      position: 'fixed',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      background: '#fff',
-      padding: '8px 16px 20px',
-      display: 'flex',
-      justifyContent: 'space-around',
-      alignItems: 'center',
-      zIndex: 100,
-      maxWidth: '480px',
-      margin: '0 auto'
-    }}>
-      {tabs.map(tab => (
-        tab.key === 'add' ? (
-          <button
-            key="add"
-            onClick={() => router.push('/farmer/produce/add')}
-            style={{
-              width: '52px',
-              height: '52px',
-              background: '#2D6A4F',
-              border: 'none',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              marginTop: '-20px',
-              boxShadow: '0 4px 12px rgba(45,106,79,0.4)',
-              flexShrink: 0
-            }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-              <path d="M12 4v16M4 12h16" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
-            </svg>
-          </button>
-        ) : (
-          <button
-            key={tab.key}
-            onClick={() => router.push(tab.route)}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '3px',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '4px 8px'
-            }}
-          >
-            {tab.icon(active === tab.key)}
-            <span style={{ fontSize: '10px', color: active === tab.key ? '#2D6A4F' : '#888', fontWeight: active === tab.key ? '600' : '400' }}>
-              {tab.label}
-            </span>
-          </button>
-        )
-      ))}
-    </div>
-  )
-}
-
-export default function FarmerDashboard() {
+export default function AdminFarmers() {
   const router = useRouter()
-  const [farmer, setFarmer] = useState(null)
-  const [stats, setStats] = useState({ listings: 0, pendingOrders: 0, fulfilledToday: 0, earnings: 0 })
-  const [recentOrders, setRecentOrders] = useState([])
+  const [farmers, setFarmers] = useState([])
+  const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/onboarding'); return }
-
-      const rawPhone = user.phone || user.user_metadata?.phone
-      const phone = rawPhone ? rawPhone.replace('+', '') : null
-
-      const { data: profile } = await supabase
-        .from('users')
-        .select('id, workspace_id, display_name')
-        .eq('phone_number', phone)
-        .single()
-
-      if (!profile?.workspace_id) { router.push('/onboarding'); return }
-
-      const { data: farmerData } = await supabase
-        .from('farmers')
-        .select('id, farm_name, produce_types, avatar_url, banner_url, status, districts(name)')
-        .eq('user_id', profile.id)
-        .single()
-
-      if (!farmerData) { router.push('/farmer/setup'); return }
-      if (farmerData.status === 'pending') { router.push('/farmer/pending'); return }
-      if (farmerData.status === 'rejected') { router.push('/farmer/setup'); return }
-
-      setFarmer(farmerData)
-
-      // Load stats
-      const { count: listingsCount } = await supabase
-        .from('produce')
-        .select('*', { count: 'exact', head: true })
-        .eq('farmer_id', farmerData.id)
-        .eq('is_active', true)
-
-      const { count: pendingCount } = await supabase
-        .from('order_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('farmer_id', farmerData.id)
-        .eq('farmer_status', 'pending')
-
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const { count: fulfilledCount } = await supabase
-        .from('order_items')
-        .select('*', { count: 'exact', head: true })
-        .eq('farmer_id', farmerData.id)
-        .eq('farmer_status', 'collected')
-        .gte('created_at', today.toISOString())
-
-      const { data: earningsData } = await supabase
-        .from('order_items')
-        .select('unit_price, quantity')
-        .eq('farmer_id', farmerData.id)
-        .eq('farmer_status', 'collected')
-
-      const totalEarnings = (earningsData || []).reduce((sum, item) => sum + (item.unit_price * item.quantity), 0)
-
-      setStats({
-        listings: listingsCount || 0,
-        pendingOrders: pendingCount || 0,
-        fulfilledToday: fulfilledCount || 0,
-        earnings: totalEarnings
-      })
-
-      // Load recent orders
-      const { data: orders } = await supabase
-        .from('order_items')
-        .select('id, quantity, farmer_status, produce(name, unit), orders(id)')
-        .eq('farmer_id', farmerData.id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-
-      setRecentOrders(orders || [])
-      setLoading(false)
-    }
-    load()
+    loadFarmers()
   }, [])
 
+  const loadFarmers = async () => {
+    const { data } = await supabase
+      .from('farmers')
+      .select('id, farm_name, contact, produce_types, status, avatar_url, districts(name), users(phone_number)')
+      .order('created_at', { ascending: false })
+    setFarmers(data || [])
+    setLoading(false)
+  }
+
+  const updateStatus = async (id, status) => {
+    await supabase.from('farmers').update({ status }).eq('id', id)
+    setFarmers(prev => prev.map(f => f.id === id ? { ...f, status } : f))
+  }
+
+  const filtered = farmers.filter(f => {
+    if (filter === 'all') return true
+    return f.status === filter
+  })
+
+  const pendingCount = farmers.filter(f => f.status === 'pending').length
+  const phone = (farmer) => farmer.users?.phone_number || farmer.contact || ''
+  const initials = (name) => name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'FA'
+
   const statusBadge = (status) => {
-    const map = {
-      pending:   { bg: '#FFF8E1', color: '#F59E0B', label: 'Pending' },
-      ready:     { bg: '#E8F5E9', color: '#2D6A4F', label: 'Ready' },
-      collected: { bg: '#F5F0E8', color: '#888',    label: 'Collected' },
+    const styles = {
+      pending:  { bg: '#FFF8E1', color: '#F59E0B', label: 'Pending' },
+      approved: { bg: '#E8F5E9', color: '#2D6A4F', label: 'Approved' },
+      rejected: { bg: '#FFEBEE', color: '#E63946', label: 'Rejected' },
     }
-    const s = map[status] || map.pending
+    const s = styles[status] || styles.pending
     return (
       <div style={{ background: s.bg, borderRadius: '20px', padding: '3px 10px', display: 'inline-block' }}>
-        <span style={{ fontSize: '11px', color: s.color, fontWeight: '600' }}>{s.label}</span>
+        <span style={{ fontSize: '12px', color: s.color, fontWeight: '600' }}>{s.label}</span>
       </div>
     )
   }
 
-  if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ color: '#2D6A4F', fontFamily: 'Georgia, serif', fontSize: '16px' }}>Loading...</p>
-    </div>
-  )
-
-  const isEmpty = stats.listings === 0
-
   return (
     <div style={{ minHeight: '100vh', background: '#F5F0E8', paddingBottom: '90px' }}>
+      <div style={{ maxWidth: '480px', margin: '0 auto', padding: '28px 16px 0' }}>
 
-      {/* Banner */}
-      <div style={{
-        width: '100%',
-        height: '140px',
-        background: farmer?.banner_url ? 'transparent' : '#2D6A4F',
-        position: 'relative',
-        overflow: 'hidden'
-      }}>
-        {farmer?.banner_url ? (
-          <img src={farmer.banner_url} alt="banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-        ) : (
-          <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #2D6A4F 0%, #52B788 100%)' }}/>
-        )}
-        {/* District badge */}
-        <div style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '20px', padding: '4px 12px' }}>
-          <span style={{ fontSize: '12px', color: '#fff', fontWeight: '600' }}>{farmer?.districts?.name || 'Chongwe'}</span>
-        </div>
-      </div>
-
-      {/* Avatar */}
-      <div style={{ padding: '0 16px', position: 'relative', marginTop: '-28px', marginBottom: '12px' }}>
-        <div style={{
-          width: '60px',
-          height: '60px',
-          borderRadius: '50%',
-          border: '3px solid #F5F0E8',
-          background: farmer?.avatar_url ? 'transparent' : '#D8F3DC',
-          overflow: 'hidden',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}>
-          {farmer?.avatar_url ? (
-            <img src={farmer.avatar_url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-          ) : (
-            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-              <circle cx="14" cy="10" r="5" fill="#2D6A4F"/>
-              <path d="M4 24c0-5.5 4.5-9 10-9s10 3.5 10 9" stroke="#2D6A4F" strokeWidth="2" strokeLinecap="round"/>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+          <div onClick={() => router.back()} style={{ width: '36px', height: '36px', background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M11 14L7 9l4-5" stroke="#2D6A4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
+          </div>
+          <p style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: '700', color: '#1a1a1a', margin: '0', flex: 1 }}>Farmer Applications</p>
+          {pendingCount > 0 && (
+            <div style={{ background: '#E63946', borderRadius: '20px', padding: '4px 10px' }}>
+              <span style={{ fontSize: '12px', color: '#fff', fontWeight: '600' }}>{pendingCount} pending</span>
+            </div>
           )}
         </div>
-      </div>
+        <p style={{ fontSize: '13px', color: '#888', margin: '0 0 20px' }}>{farmers.length} total farmers registered</p>
 
-      <div style={{ padding: '0 16px' }}>
-        <p style={{ fontFamily: 'Georgia, serif', fontSize: '20px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>
-          {farmer?.farm_name || 'My Farm'}
-        </p>
-        <p style={{ fontSize: '13px', color: '#888', margin: '0 0 20px' }}>
-          {farmer?.produce_types || 'No produce types set'}
-        </p>
-
-        {isEmpty ? (
-          /* ── EMPTY STATE ── */
-          <div style={{ background: '#2D6A4F', borderRadius: '20px', padding: '28px 20px', textAlign: 'center', marginBottom: '16px' }}>
-            <div style={{ width: '56px', height: '56px', background: 'rgba(255,255,255,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-              <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                <path d="M14 4v20M4 14h20" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/>
-              </svg>
-            </div>
-            <p style={{ fontFamily: 'Georgia, serif', fontSize: '18px', fontWeight: '700', color: '#fff', margin: '0 0 8px' }}>Add your first listing</p>
-            <p style={{ fontSize: '13px', color: '#D8F3DC', margin: '0 0 20px', lineHeight: '1.5' }}>
-              Customers in Lusaka are waiting for fresh produce from {farmer?.districts?.name || 'your district'}.
-            </p>
+        {/* Filter tabs */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', overflowX: 'auto', paddingBottom: '4px' }}>
+          {['all', 'pending', 'approved', 'rejected'].map(f => (
             <button
-              onClick={() => router.push('/farmer/produce/add')}
-              style={{ background: '#fff', border: 'none', borderRadius: '20px', padding: '12px 28px', fontSize: '14px', color: '#2D6A4F', fontWeight: '700', cursor: 'pointer', fontFamily: 'Georgia, serif' }}
+              key={f}
+              onClick={() => setFilter(f)}
+              style={{
+                background: filter === f ? '#2D6A4F' : '#fff',
+                color: filter === f ? '#fff' : '#888',
+                border: 'none',
+                borderRadius: '20px',
+                padding: '7px 14px',
+                fontSize: '13px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                textTransform: 'capitalize',
+                whiteSpace: 'nowrap'
+              }}
             >
-              Add produce
+              {f}
             </button>
+          ))}
+        </div>
+
+        {/* Farmer cards */}
+        {loading ? (
+          <p style={{ textAlign: 'center', color: '#888', fontSize: '14px', marginTop: '40px' }}>Loading...</p>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 0' }}>
+            <p style={{ fontSize: '14px', color: '#888' }}>No farmers in this category</p>
           </div>
         ) : (
-          <>
-            {/* ── STATS ── */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '20px' }}>
-              {[
-                { label: 'Active listings',  value: stats.listings,       color: '#2D6A4F' },
-                { label: 'Pending orders',   value: stats.pendingOrders,  color: '#F59E0B' },
-                { label: 'Fulfilled today',  value: stats.fulfilledToday, color: '#1a1a1a' },
-                { label: 'Total earnings',   value: `K ${stats.earnings.toLocaleString('en-ZM', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, color: '#2D6A4F', small: true },
-              ].map(s => (
-                <div key={s.label} style={{ background: '#fff', borderRadius: '14px', padding: '14px' }}>
-                  <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600' }}>{s.label}</p>
-                  <p style={{ fontSize: s.small ? '16px' : '24px', fontWeight: '700', color: s.color, margin: '0' }}>{s.value}</p>
-                </div>
-              ))}
-            </div>
+          filtered.map(farmer => (
+            <div key={farmer.id} style={{ background: '#fff', borderRadius: '16px', padding: '16px', marginBottom: '12px' }}>
 
-            {/* ── QUICK ACTIONS ── */}
-            <p style={{ fontSize: '11px', color: '#888', fontWeight: '600', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Quick actions</p>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-              {[
-                { label: 'Add produce', route: '/farmer/produce/add', primary: true },
-                { label: 'My orders',   route: '/farmer/orders',       primary: false },
-                { label: 'My produce',  route: '/farmer/produce',      primary: false },
-              ].map(a => (
-                <button
-                  key={a.label}
-                  onClick={() => router.push(a.route)}
-                  style={{
-                    flex: 1,
-                    background: a.primary ? '#2D6A4F' : '#fff',
-                    color: a.primary ? '#fff' : '#2D6A4F',
-                    border: 'none',
-                    borderRadius: '14px',
-                    padding: '12px 8px',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-
-            {/* ── RECENT ORDERS ── */}
-            <p style={{ fontSize: '11px', color: '#888', fontWeight: '600', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Recent orders</p>
-            <div style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', marginBottom: '16px' }}>
-              {recentOrders.length === 0 ? (
-                <div style={{ padding: '24px', textAlign: 'center' }}>
-                  <p style={{ fontSize: '13px', color: '#888', margin: '0' }}>No orders yet</p>
+              {/* Avatar + info + status */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: farmer.avatar_url ? 'transparent' : '#D8F3DC', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', color: '#2D6A4F' }}>
+                  {farmer.avatar_url
+                    ? <img src={farmer.avatar_url} alt={farmer.farm_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
+                    : initials(farmer.farm_name)
+                  }
                 </div>
-              ) : (
-                recentOrders.map((item, i) => (
-                  <div
-                    key={item.id}
-                    style={{
-                      padding: '12px 16px',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      borderBottom: i < recentOrders.length - 1 ? '1px solid #F5F0E8' : 'none'
-                    }}
-                  >
-                    <div>
-                      <p style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 2px' }}>
-                        Order #{item.orders?.id?.slice(-4).toUpperCase()}
-                      </p>
-                      <p style={{ fontSize: '11px', color: '#888', margin: '0' }}>
-                        {item.quantity} {item.produce?.unit} {item.produce?.name}
-                      </p>
-                    </div>
-                    {statusBadge(item.farmer_status)}
-                  </div>
-                ))
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>{farmer.farm_name}</p>
+                  <p style={{ fontSize: '12px', color: '#888', margin: '0' }}>{farmer.districts?.name || '—'} · {farmer.produce_types}</p>
+                </div>
+                {statusBadge(farmer.status)}
+              </div>
+
+              {/* Phone */}
+              <p style={{ fontSize: '13px', color: '#888', margin: '0 0 12px', paddingLeft: '2px' }}>+{phone(farmer)}</p>
+
+              {/* Approve / Reject */}
+              {farmer.status === 'pending' && (
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+                  <button onClick={() => updateStatus(farmer.id, 'approved')} style={{ flex: 1, background: '#2D6A4F', color: '#fff', border: 'none', borderRadius: '20px', padding: '10px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Approve</button>
+                  <button onClick={() => updateStatus(farmer.id, 'rejected')} style={{ flex: 1, background: '#fff', color: '#E63946', border: '1.5px solid #E63946', borderRadius: '20px', padding: '10px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Reject</button>
+                </div>
               )}
-            </div>
-          </>
-        )}
-      </div>
+              {farmer.status === 'rejected' && (
+                <button onClick={() => updateStatus(farmer.id, 'approved')} style={{ width: '100%', background: '#F5F0E8', color: '#2D6A4F', border: 'none', borderRadius: '20px', padding: '10px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', marginBottom: '10px' }}>Approve anyway</button>
+              )}
 
-      <FarmerBottomNav active="home" router={router} />
+              {/* Call + WhatsApp — single line <a> tags */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <a href={`tel:+${phone(farmer)}`} style={{ flex: 1, background: '#F5F0E8', borderRadius: '20px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textDecoration: 'none' }}>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 2h3l1.5 3.5-1.5 1a8 8 0 004 4l1-1.5L14.5 10.5V13.5a1 1 0 01-1 1C6 14.5 1.5 10 1.5 4a1 1 0 011-1H3z" stroke="#2D6A4F" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+                  <span style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600' }}>Call</span>
+                </a>
+                <a href={`https://wa.me/${phone(farmer)}`} target="_blank" rel="noreferrer" style={{ flex: 1, background: '#F5F0E8', borderRadius: '20px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textDecoration: 'none' }}>
+                  <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1.5a6.5 6.5 0 00-5.47 10.03L1.5 14.5l3.09-1.01A6.5 6.5 0 108 1.5z" stroke="#2D6A4F" strokeWidth="1.2"/><path d="M5.5 6.5s.5 1 1.5 2 2 1.5 2 1.5l1-1s-.5-.5-1-1 0-1 0-1L7.5 5.5s-1 .5-2 1z" fill="#2D6A4F"/></svg>
+                  <span style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600' }}>WhatsApp</span>
+                </a>
+              </div>
+
+            </div>
+          ))
+        )}
+
+      </div>
+      <AdminBottomNav active="farmers" router={router} />
     </div>
   )
 }
