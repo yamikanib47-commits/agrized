@@ -11,6 +11,7 @@ export default function AdminDrivers() {
   const [showAdd, setShowAdd] = useState(false)
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [pin, setPin] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState('')
 
@@ -19,7 +20,7 @@ export default function AdminDrivers() {
   const loadDrivers = async () => {
     const { data } = await supabase
       .from('drivers')
-      .select('id, name, phone, created_at')
+      .select('id, name, phone, pin, created_at')
       .order('created_at', { ascending: false })
     setDrivers(data || [])
     setLoading(false)
@@ -29,6 +30,7 @@ export default function AdminDrivers() {
     setError('')
     if (!name.trim()) { setError('Enter driver name'); return }
     if (!phone.trim()) { setError('Enter phone number'); return }
+    if (!pin.trim() || pin.length !== 4 || isNaN(pin)) { setError('PIN must be exactly 4 digits'); return }
 
     setAdding(true)
     const formattedPhone = formatPhone(phone)
@@ -55,12 +57,14 @@ export default function AdminDrivers() {
       workspace_id: ws.id,
       user_id: userRow?.id,
       name: name.trim(),
-      phone: formattedPhone
+      phone: formattedPhone,
+      pin: pin.trim()
     })
 
     setAdding(false)
     setName('')
     setPhone('')
+    setPin('')
     setShowAdd(false)
     loadDrivers()
   }
@@ -80,13 +84,10 @@ export default function AdminDrivers() {
     <div style={{ minHeight: '100vh', background: '#F5F0E8', paddingBottom: '90px' }}>
       <div style={{ maxWidth: '480px', margin: '0 auto', padding: '28px 16px 0' }}>
 
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div onClick={() => router.back()} style={{ width: '36px', height: '36px', background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M11 14L7 9l4-5" stroke="#2D6A4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 14L7 9l4-5" stroke="#2D6A4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </div>
             <p style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: '700', color: '#1a1a1a', margin: '0' }}>Drivers</p>
           </div>
@@ -99,7 +100,7 @@ export default function AdminDrivers() {
         </div>
         <p style={{ fontSize: '13px', color: '#888', margin: '0 0 16px' }}>{drivers.length} driver{drivers.length !== 1 ? 's' : ''} registered</p>
 
-        {/* Add driver form */}
+        {/* Add form */}
         {showAdd && (
           <div style={{ background: '#fff', borderRadius: '20px', padding: '20px', marginBottom: '16px' }}>
             <p style={{ fontFamily: 'Georgia, serif', fontSize: '16px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 16px' }}>Add new driver</p>
@@ -110,11 +111,25 @@ export default function AdminDrivers() {
             </div>
 
             <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Phone number</p>
-            <div style={{ background: '#F5F0E8', borderRadius: '12px', padding: '12px 14px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ background: '#F5F0E8', borderRadius: '12px', padding: '12px 14px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '14px', color: '#2D6A4F', fontWeight: '600' }}>+260</span>
               <div style={{ width: '1px', height: '18px', background: '#D8F3DC' }}></div>
               <input type="tel" placeholder="97 123 4567" value={phone} onChange={e => setPhone(e.target.value)} style={inputStyle}/>
             </div>
+
+            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>4-digit PIN</p>
+            <div style={{ background: '#F5F0E8', borderRadius: '12px', padding: '12px 14px', marginBottom: '6px' }}>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="e.g. 1234"
+                value={pin}
+                onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                style={inputStyle}
+              />
+            </div>
+            <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>Share this PIN with the driver — they use it to log in</p>
 
             {error && <p style={{ fontSize: '13px', color: '#E63946', margin: '0 0 10px' }}>{error}</p>}
 
@@ -140,8 +155,6 @@ export default function AdminDrivers() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {drivers.map(driver => (
               <div key={driver.id} style={{ background: '#fff', borderRadius: '16px', padding: '16px' }}>
-
-                {/* Avatar + info */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
                   <div style={{ width: '44px', height: '44px', background: '#D8F3DC', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', color: '#2D6A4F', flexShrink: 0 }}>
                     {initials(driver.name)}
@@ -150,20 +163,21 @@ export default function AdminDrivers() {
                     <p style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>{driver.name}</p>
                     <p style={{ fontSize: '12px', color: '#888', margin: '0' }}>+{driver.phone}</p>
                   </div>
+                  {/* PIN hint for admin */}
+                  <div style={{ background: '#F5F0E8', borderRadius: '20px', padding: '4px 10px' }}>
+                    <span style={{ fontSize: '12px', color: '#888', fontWeight: '600' }}>PIN: {driver.pin || '—'}</span>
+                  </div>
                 </div>
-
-                {/* Call + WhatsApp — single line <a> tags */}
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <a href={`tel:+${driver.phone}`} style={{ flex: 1, background: '#F5F0E8', borderRadius: '20px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textDecoration: 'none' }}>
-                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M3 2h3l1.5 3.5-1.5 1a8 8 0 004 4l1-1.5L14.5 10.5V13.5a1 1 0 01-1 1C6 14.5 1.5 10 1.5 4a1 1 0 011-1H3z" stroke="#2D6A4F" strokeWidth="1.2" strokeLinejoin="round"/></svg>
+                  <a href={'tel:+' + driver.phone} style={{ flex: 1, background: '#F5F0E8', borderRadius: '20px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textDecoration: 'none' }}>
+                    <span style={{ fontSize: '15px' }}>📞</span>
                     <span style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600' }}>Call</span>
                   </a>
-                  <a href={`https://wa.me/${driver.phone}`} target="_blank" rel="noreferrer" style={{ flex: 1, background: '#F5F0E8', borderRadius: '20px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textDecoration: 'none' }}>
-                    <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1.5a6.5 6.5 0 00-5.47 10.03L1.5 14.5l3.09-1.01A6.5 6.5 0 108 1.5z" stroke="#2D6A4F" strokeWidth="1.2"/><path d="M5.5 6.5s.5 1 1.5 2 2 1.5 2 1.5l1-1s-.5-.5-1-1 0-1 0-1L7.5 5.5s-1 .5-2 1z" fill="#2D6A4F"/></svg>
+                  <a href={'https://wa.me/' + driver.phone} target="_blank" rel="noreferrer" style={{ flex: 1, background: '#F5F0E8', borderRadius: '20px', padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', textDecoration: 'none' }}>
+                    <span style={{ fontSize: '15px' }}>💬</span>
                     <span style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600' }}>WhatsApp</span>
                   </a>
                 </div>
-
               </div>
             ))}
           </div>

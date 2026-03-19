@@ -69,6 +69,31 @@ export default function AdminOrderDetail({ params }) {
     setSaving(false)
   }
 
+  const buildWhatsAppInvoice = () => {
+    const customerPhone = order.customers?.users?.phone_number || order.customers?.phone || ''
+    const orderRef = id.slice(-4).toUpperCase()
+    const customerName = order.customers?.users?.display_name || 'Customer'
+
+    const itemLines = items.map(item =>
+      `✅ ${item.quantity} ${item.produce?.unit} ${item.produce?.name} — K ${(item.quantity * item.unit_price).toFixed(2)}`
+    ).join('\n')
+
+    const message = [
+      `🌿 *Agrized Order Confirmation*`,
+      `Order #${orderRef} — ${customerName}`,
+      ``,
+      itemLines,
+      ``,
+      `💵 *Total to pay on delivery: K ${parseFloat(order.total_zmw).toFixed(2)}*`,
+      `📱 Pay via Airtel Money / MTN MoMo`,
+      ``,
+      `Your driver will be with you shortly.`,
+      `Thank you for ordering with Agrized! 🚜`
+    ].join('\n')
+
+    return 'https://wa.me/' + customerPhone + '?text=' + encodeURIComponent(message)
+  }
+
   const statusStyle = (status) => {
     const map = {
       pending:    { bg: '#FFF8E1', color: '#F59E0B', label: 'Pending' },
@@ -97,12 +122,10 @@ export default function AdminOrderDetail({ params }) {
     return `${Math.floor(diff / 86400)}d ago`
   }
 
-  // Group items by farmer
   const farmerGroups = items.reduce((acc, item) => {
     const key = item.farmers?.farm_name || 'Unknown'
     if (!acc[key]) acc[key] = { items: [], status: item.farmer_status }
     acc[key].items.push(item)
-    // If any item is pending the farm is pending
     if (item.farmer_status === 'pending') acc[key].status = 'pending'
     return acc
   }, {})
@@ -172,7 +195,7 @@ export default function AdminOrderDetail({ params }) {
           </div>
         </div>
 
-        {/* Driver assignment */}
+        {/* Driver assignment — pending only */}
         {order.status === 'pending' && (
           <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
             <p style={{ fontSize: '11px', color: '#888', margin: '0 0 10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Assign driver</p>
@@ -191,7 +214,7 @@ export default function AdminOrderDetail({ params }) {
           </div>
         )}
 
-        {/* Assigned driver — confirmed state */}
+        {/* Assigned driver — post-pending */}
         {order.status !== 'pending' && assignedDriver && (
           <div style={{ background: '#E8F5E9', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
             <p style={{ fontSize: '11px', color: '#2D6A4F', margin: '0 0 10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Assigned driver</p>
@@ -228,7 +251,18 @@ export default function AdminOrderDetail({ params }) {
           </div>
         )}
 
-        {/* Cancel button */}
+        {/* WhatsApp invoice */}
+        {(order.status === 'confirmed' || order.status === 'in_transit') && (
+          <div style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px' }}>
+            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 10px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Send invoice</p>
+            <a href={buildWhatsAppInvoice()} target="_blank" rel="noreferrer" style={{ width: '100%', background: '#25D366', borderRadius: '20px', padding: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', textDecoration: 'none' }}>
+              <span style={{ fontSize: '18px' }}>💬</span>
+              <span style={{ fontSize: '14px', color: '#fff', fontWeight: '700' }}>Send invoice via WhatsApp</span>
+            </a>
+          </div>
+        )}
+
+        {/* Cancel */}
         {(order.status === 'pending' || order.status === 'confirmed') && (
           <button
             onClick={handleCancel}
@@ -241,7 +275,7 @@ export default function AdminOrderDetail({ params }) {
 
       </div>
 
-      {/* Action button */}
+      {/* Action buttons */}
       {order.status === 'pending' && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', padding: '12px 16px 24px', maxWidth: '480px', margin: '0 auto' }}>
           <button

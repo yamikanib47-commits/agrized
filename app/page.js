@@ -8,11 +8,19 @@ export default function Splash() {
 
   useEffect(() => {
     const check = async () => {
+      // Check driver PIN session first
+      const driverSession = localStorage.getItem('agrized_driver')
+      if (driverSession) {
+        router.push('/driver')
+        return
+      }
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setTimeout(() => router.push('/onboarding'), 1500)
         return
       }
+
       const rawPhone = user.phone || user.user_metadata?.phone
       const phone = rawPhone ? rawPhone.replace('+', '') : null
       if (!phone) { router.push('/onboarding'); return }
