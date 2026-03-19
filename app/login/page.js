@@ -1,9 +1,10 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { Suspense } from 'react'
+import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase, formatPhone } from '@/lib/supabase'
 
-export default function Login() {
+function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const phoneFromQuery = searchParams.get('phone') || ''
@@ -12,26 +13,21 @@ export default function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [resendTimer, setResendTimer] = useState(49)
-  const inputs = useRef([])
-
-  useEffect(() => {
-    if (resendTimer <= 0) return
-    const t = setTimeout(() => setResendTimer(r => r - 1), 1000)
-    return () => clearTimeout(t)
-  }, [resendTimer])
+  const inputs = useState([])[0]
+  const inputRefs = []
 
   const handleDigit = (val, idx) => {
     const d = val.replace(/\D/g, '').slice(-1)
     const next = [...digits]
     next[idx] = d
     setDigits(next)
-    if (d && idx < 5) inputs.current[idx + 1]?.focus()
+    if (d && idx < 5) inputRefs[idx + 1]?.focus()
     if (next.every(x => x !== '')) verifyOtp(next.join(''))
   }
 
   const handleKeyDown = (e, idx) => {
     if (e.key === 'Backspace' && !digits[idx] && idx > 0) {
-      inputs.current[idx - 1]?.focus()
+      inputRefs[idx - 1]?.focus()
     }
   }
 
@@ -55,7 +51,6 @@ export default function Login() {
     })
     if (e) { setError('Invalid code. Try again.'); setLoading(false); return }
 
-    // CRITICAL: 500ms delay before DB query (race condition fix)
     await new Promise(resolve => setTimeout(resolve, 500))
 
     const { data: { user } } = await supabase.auth.getUser()
@@ -83,7 +78,7 @@ export default function Login() {
     await supabase.auth.signInWithOtp({ phone: '+' + phoneFromQuery })
     setResendTimer(49)
     setDigits(['', '', '', '', '', ''])
-    inputs.current[0]?.focus()
+    inputRefs[0]?.focus()
   }
 
   return (
@@ -91,10 +86,7 @@ export default function Login() {
       <div style={{ width: '100%', maxWidth: '400px', background: '#FFFFFF', borderRadius: '28px', padding: '36px 28px 32px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
-          <div
-            onClick={() => router.back()}
-            style={{ width: '36px', height: '36px', background: '#F5F0E8', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-          >
+          <div onClick={() => router.back()} style={{ width: '36px', height: '36px', background: '#F5F0E8', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M11 14L7 9l4-5" stroke="#2D6A4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -110,18 +102,18 @@ export default function Login() {
             </svg>
           </div>
           <p style={{ fontSize: '15px', fontWeight: '600', color: '#1a1a1a', margin: '0 0 4px' }}>We've sent you a code</p>
-          <p style={{ fontSize: '13px', color: '#888888', margin: '0' }}>
+          <p style={{ fontSize: '13px', color: '#888', margin: '0' }}>
             SMS sent to +260 {phoneFromQuery.slice(3)}
           </p>
         </div>
 
-        <p style={{ fontSize: '13px', color: '#888888', margin: '0 0 12px', textAlign: 'center' }}>Enter 6 digits</p>
+        <p style={{ fontSize: '13px', color: '#888', margin: '0 0 12px', textAlign: 'center' }}>Enter 6 digits</p>
 
         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '20px' }} onPaste={handlePaste}>
           {digits.map((d, i) => (
             <input
               key={i}
-              ref={el => inputs.current[i] = el}
+              ref={el => inputRefs[i] = el}
               type="tel"
               inputMode="numeric"
               maxLength={1}
@@ -129,35 +121,27 @@ export default function Login() {
               onChange={e => handleDigit(e.target.value, i)}
               onKeyDown={e => handleKeyDown(e, i)}
               style={{
-                width: '42px',
-                height: '52px',
+                width: '42px', height: '52px',
                 background: '#F5F0E8',
                 border: `2px solid ${d ? '#2D6A4F' : '#D8F3DC'}`,
                 borderRadius: '10px',
                 textAlign: 'center',
-                fontSize: '22px',
-                fontWeight: '700',
-                color: '#2D6A4F',
-                outline: 'none'
+                fontSize: '22px', fontWeight: '700',
+                color: '#2D6A4F', outline: 'none'
               }}
             />
           ))}
         </div>
 
-        {error && (
-          <p style={{ fontSize: '13px', color: '#E63946', textAlign: 'center', margin: '0 0 12px' }}>{error}</p>
-        )}
+        {error && <p style={{ fontSize: '13px', color: '#E63946', textAlign: 'center', margin: '0 0 12px' }}>{error}</p>}
 
-        <p style={{ textAlign: 'center', fontSize: '13px', color: '#888888', margin: '0 0 4px' }}>
+        <p style={{ textAlign: 'center', fontSize: '13px', color: '#888', margin: '0 0 4px' }}>
           Didn't receive code?{' '}
-          <span
-            onClick={handleResend}
-            style={{ color: resendTimer > 0 ? '#888888' : '#2D6A4F', fontWeight: '600', cursor: resendTimer > 0 ? 'default' : 'pointer' }}
-          >
+          <span onClick={handleResend} style={{ color: resendTimer > 0 ? '#888888' : '#2D6A4F', fontWeight: '600', cursor: resendTimer > 0 ? 'default' : 'pointer' }}>
             {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend'}
           </span>
         </p>
-        <p style={{ textAlign: 'center', fontSize: '13px', color: '#888888', margin: '0 0 28px' }}>Need help?</p>
+        <p style={{ textAlign: 'center', fontSize: '13px', color: '#888', margin: '0 0 28px' }}>Need help?</p>
 
         <button
           onClick={() => verifyOtp(digits.join(''))}
@@ -165,12 +149,8 @@ export default function Login() {
           style={{
             width: '100%',
             background: loading || digits.some(d => d === '') ? '#52B788' : '#2D6A4F',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '28px',
-            padding: '16px',
-            fontSize: '16px',
-            fontWeight: '600',
+            color: '#fff', border: 'none', borderRadius: '28px',
+            padding: '16px', fontSize: '16px', fontWeight: '600',
             cursor: loading || digits.some(d => d === '') ? 'not-allowed' : 'pointer',
             fontFamily: 'Georgia, serif'
           }}
@@ -180,5 +160,17 @@ export default function Login() {
 
       </div>
     </div>
+  )
+}
+
+export default function Login() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#2D6A4F', fontFamily: 'Georgia, serif' }}>Loading...</p>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   )
 }
