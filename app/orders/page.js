@@ -1,16 +1,16 @@
 'use client'
+import { Suspense } from 'react'
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { CustomerBottomNav } from '@/app/browse/page'
 
-export default function Orders() {
+function OrdersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const success = searchParams.get('success')
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
-  const [customerId, setCustomerId] = useState(null)
 
   useEffect(() => {
     const load = async () => {
@@ -33,7 +33,6 @@ export default function Orders() {
         .single()
 
       if (!customer) { setLoading(false); return }
-      setCustomerId(customer.id)
 
       const { data } = await supabase
         .from('orders')
@@ -88,7 +87,6 @@ export default function Orders() {
         <p style={{ fontFamily: 'Georgia, serif', fontSize: '24px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 4px' }}>My Orders</p>
         <p style={{ fontSize: '13px', color: '#888', margin: '0 0 20px' }}>Track your deliveries</p>
 
-        {/* Order placed success banner */}
         {success && (
           <div style={{ background: '#E8F5E9', borderRadius: '16px', padding: '16px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '28px' }}>✅</span>
@@ -110,7 +108,6 @@ export default function Orders() {
           </div>
         ) : (
           <>
-            {/* Active orders */}
             {activeOrders.length > 0 && (
               <>
                 <p style={{ fontSize: '11px', color: '#888', fontWeight: '600', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Active</p>
@@ -127,8 +124,6 @@ export default function Orders() {
                           <span style={{ fontSize: '11px', color: '#fff', fontWeight: '600' }}>{statusStyle(order.status).label}</span>
                         </div>
                       </div>
-
-                      {/* Progress bar */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
                         {stepLabels.map((label, i) => (
                           <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < stepLabels.length - 1 ? 1 : 0 }}>
@@ -146,7 +141,6 @@ export default function Orders() {
                           <span key={i} style={{ fontSize: '9px', color: i <= step ? '#fff' : 'rgba(255,255,255,0.4)', fontWeight: i === step ? '700' : '400' }}>{label}</span>
                         ))}
                       </div>
-
                       <p style={{ fontSize: '12px', color: '#D8F3DC', margin: '10px 0 0' }}>📍 {shortAddress(order.delivery_address)}</p>
                     </div>
                   )
@@ -154,7 +148,6 @@ export default function Orders() {
               </>
             )}
 
-            {/* Past orders */}
             {pastOrders.length > 0 && (
               <>
                 <p style={{ fontSize: '11px', color: '#888', fontWeight: '600', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Past orders</p>
@@ -180,5 +173,17 @@ export default function Orders() {
       </div>
       <CustomerBottomNav active="orders" router={router} />
     </div>
+  )
+}
+
+export default function Orders() {
+  return (
+    <Suspense fallback={
+      <div style={{ minHeight: '100vh', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ color: '#2D6A4F', fontFamily: 'Georgia, serif' }}>Loading...</p>
+      </div>
+    }>
+      <OrdersContent />
+    </Suspense>
   )
 }
