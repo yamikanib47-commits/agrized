@@ -16,7 +16,7 @@ export function DriverBottomNav({ active, router }) {
         <path d="M3 9h16" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
       </svg>
     )},
-    { key: 'profile', label: 'Profile', route: '/driver/profile', icon: (a) => (
+    { key: 'profile', label: 'Profile', route: '/profile', icon: (a) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
         <circle cx="11" cy="8" r="4" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
         <path d="M4 19c0-3.9 3.1-7 7-7s7 3.1 7 7" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5" strokeLinecap="round"/>
