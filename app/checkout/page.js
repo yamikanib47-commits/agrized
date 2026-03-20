@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase, formatPhone } from '@/lib/supabase'
+import GuestWall from '@/app/components/GuestWall'
 
 export default function Checkout() {
   const router = useRouter()
@@ -16,9 +17,13 @@ export default function Checkout() {
   const [error, setError] = useState('')
   const [customerId, setCustomerId] = useState(null)
   const [workspaceId, setWorkspaceId] = useState(null)
+  const [isGuest, setIsGuest] = useState(false)
 
   useEffect(() => {
     const load = async () => {
+      const guest = localStorage.getItem('agrized_guest') === 'true'
+      if (guest) { setIsGuest(true); setPageLoading(false); return }
+
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/onboarding'); return }
 
@@ -35,7 +40,6 @@ export default function Checkout() {
       if (!profile) { router.push('/setup'); return }
       setWorkspaceId(profile.workspace_id)
 
-      // Get or create customer record
       let { data: customer } = await supabase
         .from('customers')
         .select('id, delivery_address, phone')
@@ -58,7 +62,6 @@ export default function Checkout() {
         setLandmark(parts[2] || '')
       }
 
-      // Load cart items
       const saved = localStorage.getItem('agrized_cart')
       const cartData = saved ? JSON.parse(saved) : {}
       setCart(cartData)
@@ -77,6 +80,8 @@ export default function Checkout() {
     load()
   }, [])
 
+  if (isGuest) return <GuestWall action="place orders and get delivery" />
+
   const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.price_zmw) * (cart[item.id] || 0)), 0)
 
   const handlePlaceOrder = async () => {
@@ -87,13 +92,11 @@ export default function Checkout() {
 
     const deliveryAddress = [address, area, landmark].filter(Boolean).join(', ')
 
-    // Save address to customer profile
     await supabase
       .from('customers')
       .update({ delivery_address: deliveryAddress, phone: formatPhone(phone) })
       .eq('id', customerId)
 
-    // Create order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
@@ -108,7 +111,6 @@ export default function Checkout() {
 
     if (orderError) { setError(orderError.message); setLoading(false); return }
 
-    // Create order items
     const orderItems = items.map(item => ({
       workspace_id: workspaceId,
       order_id: order.id,
@@ -121,7 +123,6 @@ export default function Checkout() {
 
     await supabase.from('order_items').insert(orderItems)
 
-    // Update produce quantities
     for (const item of items) {
       await supabase.rpc('decrement_quantity', {
         produce_id: item.id,
@@ -129,9 +130,7 @@ export default function Checkout() {
       })
     }
 
-    // Clear cart
     localStorage.removeItem('agrized_cart')
-
     setLoading(false)
     router.push('/orders?success=true')
   }
@@ -149,7 +148,6 @@ export default function Checkout() {
     <div style={{ minHeight: '100vh', background: '#F5F0E8', paddingBottom: '100px' }}>
       <div style={{ maxWidth: '480px', margin: '0 auto', padding: '52px 16px 0' }}>
 
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
           <div onClick={() => router.back()} style={{ width: '36px', height: '36px', background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 14L7 9l4-5" stroke="#2D6A4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -157,19 +155,11 @@ export default function Checkout() {
           <p style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: '700', color: '#1a1a1a', margin: '0' }}>Checkout</p>
         </div>
 
-        {/* Delivery address */}
         <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Delivery address</p>
-        <div style={fieldWrap}>
-          <input placeholder="House / flat number & street" value={address} onChange={e => setAddress(e.target.value)} style={inputStyle}/>
-        </div>
-        <div style={fieldWrap}>
-          <input placeholder="Area / suburb (e.g. Thornpark)" value={area} onChange={e => setArea(e.target.value)} style={inputStyle}/>
-        </div>
-        <div style={{ ...fieldWrap, marginBottom: '20px' }}>
-          <input placeholder="Landmark — optional (e.g. Near Shoprite Woodlands)" value={landmark} onChange={e => setLandmark(e.target.value)} style={inputStyle}/>
-        </div>
+        <div style={fieldWrap}><input placeholder="House / flat number & street" value={address} onChange={e => setAddress(e.target.value)} style={inputStyle}/></div>
+        <div style={fieldWrap}><input placeholder="Area / suburb (e.g. Thornpark)" value={area} onChange={e => setArea(e.target.value)} style={inputStyle}/></div>
+        <div style={{ ...fieldWrap, marginBottom: '20px' }}><input placeholder="Landmark — optional (e.g. Near Shoprite Woodlands)" value={landmark} onChange={e => setLandmark(e.target.value)} style={inputStyle}/></div>
 
-        {/* Contact */}
         <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contact number</p>
         <div style={{ ...fieldWrap, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '14px', color: '#2D6A4F', fontWeight: '600' }}>+260</span>
@@ -177,7 +167,6 @@ export default function Checkout() {
           <input type="tel" placeholder="97 123 4567" value={phone.replace(/^260/, '')} onChange={e => setPhone(e.target.value)} style={inputStyle}/>
         </div>
 
-        {/* Order summary */}
         <div style={{ background: '#fff', borderRadius: '16px', padding: '16px', marginBottom: '12px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a', margin: '0' }}>{items.length} item{items.length !== 1 ? 's' : ''}</p>
@@ -195,7 +184,6 @@ export default function Checkout() {
           </div>
         </div>
 
-        {/* Payment method */}
         <div style={{ background: '#FFF8E1', borderRadius: '12px', padding: '12px 14px', marginBottom: '16px' }}>
           <p style={{ fontSize: '13px', color: '#F59E0B', margin: '0 0 4px', fontWeight: '700' }}>Payment on delivery</p>
           <p style={{ fontSize: '12px', color: '#888', margin: '0' }}>Driver will collect via Airtel Money or MTN MoMo when your order arrives.</p>
@@ -205,7 +193,6 @@ export default function Checkout() {
 
       </div>
 
-      {/* Place order button */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', padding: '12px 16px 24px', maxWidth: '480px', margin: '0 auto' }}>
         <button
           onClick={handlePlaceOrder}

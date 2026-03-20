@@ -2,15 +2,20 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import GuestWall from '@/app/components/GuestWall'
 
 export default function Cart() {
   const router = useRouter()
   const [cart, setCart] = useState({})
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
+  const [isGuest, setIsGuest] = useState(false)
 
   useEffect(() => {
     const load = async () => {
+      const guest = localStorage.getItem('agrized_guest') === 'true'
+      if (guest) { setIsGuest(true); setLoading(false); return }
+
       const saved = localStorage.getItem('agrized_cart')
       const cartData = saved ? JSON.parse(saved) : {}
       setCart(cartData)
@@ -28,6 +33,8 @@ export default function Cart() {
     }
     load()
   }, [])
+
+  if (isGuest) return <GuestWall action="add items to your cart and place orders" />
 
   const saveCart = (newCart) => {
     setCart(newCart)
@@ -64,7 +71,6 @@ export default function Cart() {
     <div style={{ minHeight: '100vh', background: '#F5F0E8', paddingBottom: '100px' }}>
       <div style={{ maxWidth: '480px', margin: '0 auto', padding: '52px 16px 0' }}>
 
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
           <div onClick={() => router.back()} style={{ width: '36px', height: '36px', background: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M11 14L7 9l4-5" stroke="#2D6A4F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -84,7 +90,6 @@ export default function Cart() {
           </div>
         ) : (
           <>
-            {/* Cart items */}
             <div style={{ marginBottom: '16px' }}>
               {items.map(item => (
                 <div key={item.id} style={{ background: '#fff', borderRadius: '16px', padding: '14px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -104,7 +109,6 @@ export default function Cart() {
               ))}
             </div>
 
-            {/* Order summary */}
             <div style={{ background: '#fff', borderRadius: '16px', padding: '16px', marginBottom: '12px' }}>
               <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 12px' }}>Order summary</p>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -121,7 +125,6 @@ export default function Cart() {
               </div>
             </div>
 
-            {/* Payment note */}
             <div style={{ background: '#FFF8E1', borderRadius: '12px', padding: '12px 14px', marginBottom: '16px' }}>
               <p style={{ fontSize: '12px', color: '#F59E0B', margin: '0', fontWeight: '600' }}>💵 Payment on delivery via Airtel Money / MTN MoMo</p>
             </div>
@@ -130,13 +133,9 @@ export default function Cart() {
 
       </div>
 
-      {/* Checkout button */}
       {items.length > 0 && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', padding: '12px 16px 24px', maxWidth: '480px', margin: '0 auto' }}>
-          <button
-            onClick={() => router.push('/checkout')}
-            style={{ width: '100%', background: '#2D6A4F', color: '#fff', border: 'none', borderRadius: '28px', padding: '16px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Georgia, serif' }}
-          >
+          <button onClick={() => router.push('/checkout')} style={{ width: '100%', background: '#2D6A4F', color: '#fff', border: 'none', borderRadius: '28px', padding: '16px', fontSize: '16px', fontWeight: '600', cursor: 'pointer', fontFamily: 'Georgia, serif' }}>
             Proceed to checkout · K {subtotal.toFixed(2)}
           </button>
         </div>

@@ -12,16 +12,11 @@ export default function AdminHome() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/onboarding'); return }
-
-      const rawPhone = user.phone || user.user_metadata?.phone
-      const phone = rawPhone ? rawPhone.replace('+', '') : null
-
-      const { data: profile } = await supabase
-        .from('users').select('role').eq('phone_number', phone).single()
-
-      if (profile?.role !== 'admin') { router.push('/browse'); return }
+      // Check admin localStorage session
+      const adminSession = localStorage.getItem('agrized_admin_session')
+      if (!adminSession) { router.push('/admin/login'); return }
+      const adminData = JSON.parse(adminSession)
+      if (adminData.role !== 'admin') { router.push('/admin/login'); return }
 
       const today = new Date(); today.setHours(0, 0, 0, 0)
 
@@ -47,10 +42,10 @@ export default function AdminHome() {
   }, [])
 
   const navItems = [
-    { label: 'Orders',    sub: 'View & manage all orders',      route: '/admin/orders',    badge: stats.pending > 0 ? { count: stats.pending, color: '#E63946', text: '#fff' } : null },
-    { label: 'Farmers',   sub: 'Approve & manage farmers',      route: '/admin/farmers',   badge: pendingFarmers > 0 ? { count: pendingFarmers, color: '#FFF8E1', text: '#F59E0B' } : null },
-    { label: 'Drivers',   sub: 'Assign & track drivers',        route: '/admin/drivers',   badge: null },
-    { label: 'Districts', sub: 'Toggle active districts',       route: '/admin/districts', badge: null },
+    { label: 'Orders',    sub: 'View & manage all orders',  route: '/admin/orders',    badge: stats.pending > 0 ? { count: stats.pending, color: '#E63946', text: '#fff' } : null },
+    { label: 'Farmers',   sub: 'Approve & manage farmers',  route: '/admin/farmers',   badge: pendingFarmers > 0 ? { count: pendingFarmers, color: '#FFF8E1', text: '#F59E0B' } : null },
+    { label: 'Drivers',   sub: 'Assign & track drivers',    route: '/admin/drivers',   badge: null },
+    { label: 'Districts', sub: 'Toggle active districts',   route: '/admin/districts', badge: null },
   ]
 
   const icons = {
@@ -70,6 +65,7 @@ export default function AdminHome() {
     <div style={{ minHeight: '100vh', background: '#F5F0E8', paddingBottom: '90px' }}>
       <div style={{ maxWidth: '480px', margin: '0 auto', padding: '28px 16px 0' }}>
 
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
           <div>
             <p style={{ fontSize: '13px', color: '#888', margin: '0' }}>Good morning,</p>
@@ -81,6 +77,7 @@ export default function AdminHome() {
         </div>
         <p style={{ fontSize: '13px', color: '#888', margin: '0 0 20px' }}>Agrized · Platform overview</p>
 
+        {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '24px' }}>
           {[
             { label: 'Orders today', value: stats.today,     color: '#fff',    bg: '#2D6A4F', labelColor: '#D8F3DC' },
@@ -95,6 +92,7 @@ export default function AdminHome() {
           ))}
         </div>
 
+        {/* Nav items */}
         <p style={{ fontSize: '11px', color: '#888', fontWeight: '600', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Manage</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {navItems.map(item => (
@@ -118,6 +116,18 @@ export default function AdminHome() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Sign out */}
+        <div
+          onClick={() => {
+            localStorage.removeItem('agrized_admin_session')
+            router.push('/admin/login')
+          }}
+          style={{ background: '#fff', borderRadius: '16px', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginTop: '12px' }}
+        >
+          <span style={{ fontSize: '20px' }}>🚪</span>
+          <p style={{ fontSize: '14px', fontWeight: '600', color: '#E63946', margin: '0' }}>Sign out</p>
         </div>
 
       </div>
