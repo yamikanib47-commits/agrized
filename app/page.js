@@ -1,51 +1,34 @@
 'use client'
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { getSession } from '@/lib/supabase'
 
 export default function Splash() {
   const router = useRouter()
 
   useEffect(() => {
-    const check = async () => {
+    const check = () => {
       // Driver session
       const driverSession = localStorage.getItem('agrized_driver')
       if (driverSession) { router.push('/driver'); return }
 
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
+      // Admin session
+      const adminSession = localStorage.getItem('agrized_admin_session')
+      if (adminSession) { router.push('/admin'); return }
 
-        if (!user) {
-          router.push('/onboarding')
-          return
-        }
+      // Main session
+      const session = getSession()
+      if (!session) { router.push('/login'); return }
 
-        const rawPhone = user.phone || user.user_metadata?.phone
-        const phone = rawPhone ? rawPhone.replace('+', '') : null
-        if (!phone) { router.push('/onboarding'); return }
-
-        const { data: profile } = await supabase
-          .from('users')
-          .select('role, workspace_id')
-          .eq('phone_number', phone)
-          .single()
-
-        if (!profile?.workspace_id) { router.push('/setup'); return }
-
-        if (profile.role === 'farmer') router.push('/farmer/dashboard')
-        else if (profile.role === 'admin') router.push('/admin')
-        else if (profile.role === 'driver') router.push('/driver')
-        else router.push('/browse')
-
-      } catch (e) {
-        router.push('/onboarding')
-      }
+      if (session.role === 'farmer') router.push('/farmer/dashboard')
+      else if (session.role === 'admin') router.push('/admin')
+      else if (session.role === 'driver') router.push('/driver')
+      else router.push('/browse')
     }
 
-    // Safety timeout — never stay stuck on splash
-    const timeout = setTimeout(() => router.push('/onboarding'), 3000)
-
-    check().finally(() => clearTimeout(timeout))
+    const timeout = setTimeout(() => router.push('/login'), 3000)
+    check()
+    clearTimeout(timeout)
   }, [])
 
   return (
@@ -60,7 +43,7 @@ export default function Splash() {
       </div>
       <div style={{ textAlign: 'center' }}>
         <p style={{ fontFamily: 'Georgia, serif', fontSize: '36px', fontWeight: '700', color: '#2D6A4F', margin: '0', letterSpacing: '-0.5px' }}>Agrized</p>
-        <p style={{ fontSize: '14px', color: '#888888', margin: '4px 0 0', fontStyle: 'italic' }}>Farm-fresh, straight to you</p>
+        <p style={{ fontSize: '14px', color: '#888', margin: '4px 0 0', fontStyle: 'italic' }}>Farm-fresh, straight to you</p>
       </div>
       <div style={{ display: 'flex', gap: '6px', marginTop: '32px' }}>
         <div style={{ width: '8px', height: '8px', background: '#2D6A4F', borderRadius: '50%' }}></div>

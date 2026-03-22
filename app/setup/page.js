@@ -1,39 +1,27 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, getSession, setSession } from '@/lib/supabase'
 
 export default function Setup() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [checking, setChecking] = useState(true)
-  const [user, setUser] = useState(null)
+  const [session, setSessionState] = useState(null)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/onboarding'); return }
-      setUser(user)
+    const load = () => {
+      const s = getSession()
+      if (!s) { router.push('/login'); return }
 
-      // If user already has a profile — route them directly
-      const rawPhone = user.phone || user.user_metadata?.phone
-      const phone = rawPhone ? rawPhone.replace('+', '') : null
+      // Already has a role set — route directly
+      if (s.role === 'farmer') { router.push('/farmer/dashboard'); return }
+      if (s.role === 'admin')  { router.push('/admin'); return }
+      if (s.role === 'driver') { router.push('/driver'); return }
+      if (s.role === 'customer' && s.workspace_id) { router.push('/browse'); return }
 
-      const { data: existing } = await supabase
-        .from('users')
-        .select('role, workspace_id')
-        .eq('phone_number', phone)
-        .single()
-
-      if (existing?.workspace_id) {
-        if (existing.role === 'farmer') { router.push('/farmer/dashboard'); return }
-        if (existing.role === 'admin')  { router.push('/admin'); return }
-        if (existing.role === 'driver') { router.push('/driver'); return }
-        router.push('/browse')
-        return
-      }
-
+      setSessionState(s)
       setChecking(false)
     }
     load()
@@ -44,51 +32,19 @@ export default function Setup() {
     setError('')
 
     try {
-      const rawPhone = user.phone || user.user_metadata?.phone
-      const phone = rawPhone ? rawPhone.replace('+', '') : null
+      const s = getSession()
+      if (!s) { router.push('/login'); return }
 
-      // Check if workspace already exists for this phone
-      let workspaceId = null
-
-      const { data: existingUser } = await supabase
+      // Update role in users table
+      const { error: updateError } = await supabase
         .from('users')
-        .select('workspace_id')
-        .eq('phone_number', phone)
-        .single()
+        .update({ role })
+        .eq('id', s.id)
 
-      if (existingUser?.workspace_id) {
-        workspaceId = existingUser.workspace_id
-        // Just update the role
-        await supabase
-          .from('users')
-          .update({ role })
-          .eq('phone_number', phone)
-      } else {
-        // Create workspace
-        const { data: ws, error: wsError } = await supabase
-        .from('workspaces')
-        .insert({ name: phone })
-        .select()
-        .single()
-      
-      console.log('WS result:', ws, wsError)
-      
-      if (wsError) { setError(wsError.message); setLoading(false); return }
-      workspaceId = ws.id
-      
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          workspace_id: workspaceId,
-          phone_number: phone,
-          role,
-          display_name: ''
-        })
-      
-      console.log('User error:', userError)
-      
-      if (userError) { setError(userError.message); setLoading(false); return }
-      }
+      if (updateError) { setError(updateError.message); setLoading(false); return }
+
+      // Update session with new role
+      setSession({ ...s, role })
 
       setLoading(false)
       if (role === 'farmer') router.push('/farmer/setup')
@@ -133,7 +89,9 @@ export default function Setup() {
           <p style={{ fontFamily: 'Georgia, serif', fontSize: '20px', fontWeight: '700', color: '#fff', margin: '0 0 6px' }}>
             {loading ? 'Setting up...' : "I'm a Customer"}
           </p>
-          <p style={{ fontSize: '13px', color: '#D8F3DC', margin: '0 0 14px', lineHeight: '1.5' }}>I want to buy fresh produce delivered to Lusaka</p>
+          <p style={{ fontSize: '13px', color: '#D8F3DC', margin: '0 0 14px', lineHeight: '1.5' }}>
+            I want to buy fresh produce delivered to Lusaka
+          </p>
           <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '20px', padding: '6px 14px', display: 'inline-block' }}>
             <span style={{ fontSize: '13px', color: '#fff', fontWeight: '600' }}>Browse & order →</span>
           </div>
@@ -149,7 +107,9 @@ export default function Setup() {
           <p style={{ fontFamily: 'Georgia, serif', fontSize: '20px', fontWeight: '700', color: '#2D6A4F', margin: '0 0 6px' }}>
             {loading ? 'Setting up...' : "I'm a Farmer"}
           </p>
-          <p style={{ fontSize: '13px', color: '#888', margin: '0 0 14px', lineHeight: '1.5' }}>I want to list produce and fulfill orders from Lusaka</p>
+          <p style={{ fontSize: '13px', color: '#888', margin: '0 0 14px', lineHeight: '1.5' }}>
+            I want to list produce and fulfill orders from Lusaka
+          </p>
           <div style={{ background: '#E8F5E9', borderRadius: '20px', padding: '6px 14px', display: 'inline-block' }}>
             <span style={{ fontSize: '13px', color: '#2D6A4F', fontWeight: '600' }}>Register farm →</span>
           </div>
@@ -158,7 +118,7 @@ export default function Setup() {
       </div>
 
       {error && (
-        <div style={{ background: '#FFEBEE', borderRadius: '12px', padding: '10px 16px', marginTop: '16px' }}>
+        <div style={{ background: '#FFEBEE', borderRadius: '12px', padding: '10px 16px', marginTop: '16px', maxWidth: '400px', width: '100%' }}>
           <p style={{ fontSize: '13px', color: '#E63946', margin: '0' }}>{error}</p>
         </div>
       )}
@@ -168,10 +128,10 @@ export default function Setup() {
       </p>
 
       <p
-        onClick={async () => { await supabase.auth.signOut(); router.push('/onboarding') }}
+        onClick={() => router.push('/login')}
         style={{ fontSize: '13px', color: '#888', marginTop: '12px', cursor: 'pointer', textDecoration: 'underline' }}
       >
-        ← Use a different number
+        ← Back to sign in
       </p>
 
     </div>

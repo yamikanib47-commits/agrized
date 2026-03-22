@@ -2,7 +2,7 @@
 import { Suspense } from 'react'
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, getSession } from '@/lib/supabase'
 import { CustomerBottomNav } from '@/app/browse/page'
 
 function OrdersContent() {
@@ -14,22 +14,13 @@ function OrdersContent() {
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/onboarding'); return }
-
-      const rawPhone = user.phone || user.user_metadata?.phone
-      const phone = rawPhone ? rawPhone.replace('+', '') : null
-
-      const { data: profile } = await supabase
-        .from('users')
-        .select('id')
-        .eq('phone_number', phone)
-        .single()
+      const session = getSession()
+      if (!session) { router.push('/login'); return }
 
       const { data: customer } = await supabase
         .from('customers')
         .select('id')
-        .eq('user_id', profile.id)
+        .eq('user_id', session.id)
         .single()
 
       if (!customer) { setLoading(false); return }
@@ -63,7 +54,6 @@ function OrdersContent() {
   }
 
   const stepLabels = ['Placed', 'Confirmed', 'In transit', 'Delivered']
-
   const activeOrders = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled')
   const pastOrders = orders.filter(o => o.status === 'delivered' || o.status === 'cancelled')
 
@@ -124,6 +114,7 @@ function OrdersContent() {
                           <span style={{ fontSize: '11px', color: '#fff', fontWeight: '600' }}>{statusStyle(order.status).label}</span>
                         </div>
                       </div>
+
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '6px' }}>
                         {stepLabels.map((label, i) => (
                           <div key={i} style={{ display: 'flex', alignItems: 'center', flex: i < stepLabels.length - 1 ? 1 : 0 }}>
@@ -169,7 +160,6 @@ function OrdersContent() {
             )}
           </>
         )}
-
       </div>
       <CustomerBottomNav active="orders" router={router} />
     </div>

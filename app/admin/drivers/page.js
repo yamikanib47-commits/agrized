@@ -18,10 +18,14 @@ export default function AdminDrivers() {
   useEffect(() => { loadDrivers() }, [])
 
   const loadDrivers = async () => {
+    const adminSession = localStorage.getItem('agrized_admin_session')
+    if (!adminSession) { router.push('/admin/login'); return }
+
     const { data } = await supabase
       .from('drivers')
       .select('id, name, phone, pin, created_at')
       .order('created_at', { ascending: false })
+
     setDrivers(data || [])
     setLoading(false)
   }
@@ -38,7 +42,8 @@ export default function AdminDrivers() {
     const { data: ws } = await supabase
       .from('workspaces')
       .insert({ name: name.trim() })
-      .select().single()
+      .select()
+      .single()
 
     await supabase.from('users').insert({
       workspace_id: ws.id,
@@ -62,23 +67,14 @@ export default function AdminDrivers() {
     })
 
     setAdding(false)
-    setName('')
-    setPhone('')
-    setPin('')
+    setName(''); setPhone(''); setPin('')
     setShowAdd(false)
     loadDrivers()
   }
 
   const initials = (name) => name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'DR'
 
-  const inputStyle = {
-    width: '100%',
-    background: 'transparent',
-    border: 'none',
-    outline: 'none',
-    fontSize: '15px',
-    color: '#1a1a1a'
-  }
+  const inputStyle = { width: '100%', background: 'transparent', border: 'none', outline: 'none', fontSize: '15px', color: '#1a1a1a' }
 
   return (
     <div style={{ minHeight: '100vh', background: '#F5F0E8', paddingBottom: '90px' }}>
@@ -91,16 +87,12 @@ export default function AdminDrivers() {
             </div>
             <p style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: '700', color: '#1a1a1a', margin: '0' }}>Drivers</p>
           </div>
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            style={{ background: '#2D6A4F', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
-          >
+          <button onClick={() => setShowAdd(!showAdd)} style={{ background: '#2D6A4F', color: '#fff', border: 'none', borderRadius: '20px', padding: '8px 16px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
             {showAdd ? 'Cancel' : '+ Add driver'}
           </button>
         </div>
         <p style={{ fontSize: '13px', color: '#888', margin: '0 0 16px' }}>{drivers.length} driver{drivers.length !== 1 ? 's' : ''} registered</p>
 
-        {/* Add form */}
         {showAdd && (
           <div style={{ background: '#fff', borderRadius: '20px', padding: '20px', marginBottom: '16px' }}>
             <p style={{ fontFamily: 'Georgia, serif', fontSize: '16px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 16px' }}>Add new driver</p>
@@ -119,31 +111,18 @@ export default function AdminDrivers() {
 
             <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>4-digit PIN</p>
             <div style={{ background: '#F5F0E8', borderRadius: '12px', padding: '12px 14px', marginBottom: '6px' }}>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                placeholder="e.g. 1234"
-                value={pin}
-                onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                style={inputStyle}
-              />
+              <input type="password" inputMode="numeric" maxLength={4} placeholder="e.g. 1234" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))} style={inputStyle}/>
             </div>
             <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>Share this PIN with the driver — they use it to log in</p>
 
             {error && <p style={{ fontSize: '13px', color: '#E63946', margin: '0 0 10px' }}>{error}</p>}
 
-            <button
-              onClick={handleAddDriver}
-              disabled={adding}
-              style={{ width: '100%', background: adding ? '#52B788' : '#2D6A4F', color: '#fff', border: 'none', borderRadius: '20px', padding: '14px', fontSize: '15px', fontWeight: '600', cursor: adding ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif' }}
-            >
+            <button onClick={handleAddDriver} disabled={adding} style={{ width: '100%', background: adding ? '#52B788' : '#2D6A4F', color: '#fff', border: 'none', borderRadius: '20px', padding: '14px', fontSize: '15px', fontWeight: '600', cursor: adding ? 'not-allowed' : 'pointer', fontFamily: 'Georgia, serif' }}>
               {adding ? 'Adding...' : 'Add driver'}
             </button>
           </div>
         )}
 
-        {/* Driver list */}
         {loading ? (
           <p style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>Loading...</p>
         ) : drivers.length === 0 ? (
@@ -163,7 +142,6 @@ export default function AdminDrivers() {
                     <p style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>{driver.name}</p>
                     <p style={{ fontSize: '12px', color: '#888', margin: '0' }}>+{driver.phone}</p>
                   </div>
-                  {/* PIN hint for admin */}
                   <div style={{ background: '#F5F0E8', borderRadius: '20px', padding: '4px 10px' }}>
                     <span style={{ fontSize: '12px', color: '#888', fontWeight: '600' }}>PIN: {driver.pin || '—'}</span>
                   </div>
@@ -182,7 +160,6 @@ export default function AdminDrivers() {
             ))}
           </div>
         )}
-
       </div>
       <AdminBottomNav active="home" router={router} />
     </div>

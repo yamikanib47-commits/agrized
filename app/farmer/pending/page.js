@@ -1,102 +1,73 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, getSession } from '@/lib/supabase'
 
 export default function FarmerPending() {
   const router = useRouter()
-  const [farmer, setFarmer] = useState(null)
+  const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      const rawPhone = user?.phone || user?.user_metadata?.phone
-      const phone = rawPhone ? rawPhone.replace('+', '') : null
-      if (!phone) { router.push('/onboarding'); return }
+    const check = async () => {
+      const session = getSession()
+      if (!session) { router.push('/login'); return }
 
-      const { data: profile } = await supabase
-        .from('users')
-        .select('id')
-        .eq('phone_number', phone)
-        .single()
-
-      if (!profile) { router.push('/onboarding'); return }
-
-      const { data: farmerData } = await supabase
+      const { data: farmer } = await supabase
         .from('farmers')
-        .select('farm_name, district_id, produce_types, status, districts(name)')
-        .eq('user_id', profile.id)
+        .select('id, status')
+        .eq('user_id', session.id)
         .single()
 
-      if (farmerData?.status === 'approved') {
-        router.push('/farmer/dashboard')
-        return
-      }
-      if (farmerData?.status === 'rejected') {
-        router.push('/farmer/setup')
-        return
-      }
+      if (!farmer) { router.push('/farmer/setup'); return }
+      if (farmer.status === 'approved') { router.push('/farmer/dashboard'); return }
+      if (farmer.status === 'rejected') { router.push('/farmer/setup'); return }
 
-      setFarmer(farmerData)
+      setChecking(false)
+
+      // Poll every 10 seconds
+      const interval = setInterval(async () => {
+        const { data: updated } = await supabase
+          .from('farmers')
+          .select('status')
+          .eq('id', farmer.id)
+          .single()
+
+        if (updated?.status === 'approved') {
+          clearInterval(interval)
+          router.push('/farmer/dashboard')
+        }
+        if (updated?.status === 'rejected') {
+          clearInterval(interval)
+          router.push('/farmer/setup')
+        }
+      }, 10000)
+
+      return () => clearInterval(interval)
     }
-    load()
-
-    // Poll every 10 seconds for approval
-    const interval = setInterval(load, 10000)
-    return () => clearInterval(interval)
+    check()
   }, [])
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
-  }
+  if (checking) return (
+    <div style={{ minHeight: '100vh', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: '#2D6A4F', fontFamily: 'Georgia, serif' }}>Loading...</p>
+    </div>
+  )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-
-        <div style={{ width: '96px', height: '96px', background: '#D8F3DC', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px' }}>
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="22" fill="#52B788"/>
-            <path d="M15 24l7 7 11-11" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </div>
-
-        <p style={{ fontFamily: 'Georgia, serif', fontSize: '24px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 8px' }}>Application submitted!</p>
-        <p style={{ fontSize: '14px', color: '#888888', margin: '0 0 28px', lineHeight: '1.6' }}>
-          Your farm registration is under review. We'll notify you once the admin approves your account.
+    <div style={{ minHeight: '100vh', background: '#F5F0E8', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div style={{ maxWidth: '380px', width: '100%', textAlign: 'center' }}>
+        <div style={{ width: '80px', height: '80px', background: '#FFF8E1', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '36px' }}>⏳</div>
+        <p style={{ fontFamily: 'Georgia, serif', fontSize: '24px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 10px' }}>Application pending</p>
+        <p style={{ fontSize: '14px', color: '#888', margin: '0 0 24px', lineHeight: '1.6' }}>
+          Your farm registration is being reviewed by the Agrized team. You'll be notified once approved — usually within 24 hours.
         </p>
-
-        {farmer && (
-          <div style={{ background: '#fff', borderRadius: '20px', padding: '20px', marginBottom: '20px', textAlign: 'left' }}>
-            {[
-              ['Farm name', farmer.farm_name],
-              ['District', farmer.districts?.name || '—'],
-              ['Produce types', farmer.produce_types],
-            ].map(([label, val]) => (
-              <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '10px', marginBottom: '10px', borderBottom: '1px solid #F5F0E8' }}>
-                <span style={{ fontSize: '13px', color: '#888' }}>{label}</span>
-                <span style={{ fontSize: '13px', color: '#1a1a1a', fontWeight: '600', maxWidth: '55%', textAlign: 'right' }}>{val}</span>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '13px', color: '#888' }}>Status</span>
-              <div style={{ background: '#FFF8E1', borderRadius: '20px', padding: '4px 12px' }}>
-                <span style={{ fontSize: '12px', color: '#F59E0B', fontWeight: '600' }}>Pending review</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <p style={{ fontSize: '12px', color: '#888888', margin: '0 0 24px' }}>Usually approved within 24 hours</p>
-
-        <button
-          onClick={handleSignOut}
-          style={{ background: 'transparent', border: '1.5px solid #D8F3DC', borderRadius: '28px', padding: '12px 28px', fontSize: '14px', color: '#888', cursor: 'pointer' }}
-        >
-          Sign out
-        </button>
-
+        <div style={{ background: '#FFF8E1', borderRadius: '16px', padding: '16px', marginBottom: '20px' }}>
+          <p style={{ fontSize: '13px', color: '#F59E0B', margin: '0', fontWeight: '600' }}>⏳ Checking for updates every 10 seconds...</p>
+        </div>
+        <p style={{ fontSize: '13px', color: '#888', margin: '0' }}>
+          Questions? WhatsApp us at{' '}
+          <a href="https://wa.me/260970000001" style={{ color: '#2D6A4F', fontWeight: '600' }}>+260 97 000 0001</a>
+        </p>
       </div>
     </div>
   )

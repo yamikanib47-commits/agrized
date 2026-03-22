@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, getSession } from '@/lib/supabase'
 import FarmerBottomNav from '@/app/components/FarmerBottomNav'
 
 export default function FarmerOrders() {
@@ -14,28 +14,24 @@ export default function FarmerOrders() {
   useEffect(() => { loadOrders() }, [])
 
   const loadOrders = async () => {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/onboarding'); return }
-
-    const rawPhone = user.phone || user.user_metadata?.phone
-    const phone = rawPhone ? rawPhone.replace('+', '') : null
-
-    const { data: profile } = await supabase
-      .from('users').select('id').eq('phone_number', phone).single()
+    const session = getSession()
+    if (!session) { router.push('/login'); return }
 
     const { data: farmer } = await supabase
-      .from('farmers').select('id').eq('user_id', profile.id).single()
+      .from('farmers')
+      .select('id')
+      .eq('user_id', session.id)
+      .single()
 
+    if (!farmer) { router.push('/farmer/setup'); return }
     setFarmerId(farmer.id)
 
     const { data } = await supabase
       .from('order_items')
       .select('id, quantity, unit_price, farmer_status, produce(name, unit), orders(id, status, created_at, delivery_address, drivers(name))')
       .eq('farmer_id', farmer.id)
-      .in('orders.status', ['confirmed', 'in_transit', 'delivered'])
       .order('created_at', { ascending: false })
 
-    // Group by order
     const orderMap = {}
     ;(data || []).forEach(item => {
       if (!item.orders) return
@@ -84,7 +80,6 @@ export default function FarmerOrders() {
         <p style={{ fontFamily: 'Georgia, serif', fontSize: '24px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 4px' }}>Incoming Orders</p>
         <p style={{ fontSize: '13px', color: '#888', margin: '0 0 16px' }}>Prepare stock for driver pickup</p>
 
-        {/* Filter */}
         <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
           {[
             { key: 'all',     label: 'All' },
@@ -111,8 +106,6 @@ export default function FarmerOrders() {
             const orderTotal = items.reduce((sum, i) => sum + (i.quantity * i.unit_price), 0)
             return (
               <div key={order.id} style={{ background: '#fff', borderRadius: '16px', padding: '16px', marginBottom: '12px' }}>
-
-                {/* Order header */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                   <div>
                     <p style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>#{order.id.slice(-4).toUpperCase()}</p>
@@ -125,7 +118,6 @@ export default function FarmerOrders() {
                   </div>
                 </div>
 
-                {/* Items needed */}
                 <div style={{ background: '#F5F0E8', borderRadius: '12px', padding: '12px', marginBottom: '12px' }}>
                   {items.map((item, i) => (
                     <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: i < items.length - 1 ? '8px' : '0', marginBottom: i < items.length - 1 ? '8px' : '0', borderBottom: i < items.length - 1 ? '1px solid #E8E8E8' : 'none' }}>
@@ -142,12 +134,8 @@ export default function FarmerOrders() {
                   </div>
                 </div>
 
-                {/* Action */}
                 {!ready ? (
-                  <button
-                    onClick={() => markReady(order.id)}
-                    style={{ width: '100%', background: '#2D6A4F', color: '#fff', border: 'none', borderRadius: '20px', padding: '12px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}
-                  >
+                  <button onClick={() => markReady(order.id)} style={{ width: '100%', background: '#2D6A4F', color: '#fff', border: 'none', borderRadius: '20px', padding: '12px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
                     Mark as ready ✓
                   </button>
                 ) : (
@@ -159,7 +147,6 @@ export default function FarmerOrders() {
             )
           })
         )}
-
       </div>
       <FarmerBottomNav active="orders" router={router} />
     </div>

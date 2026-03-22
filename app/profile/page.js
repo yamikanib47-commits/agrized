@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, getSession, clearSession } from '@/lib/supabase'
 
 export default function Profile() {
   const router = useRouter()
@@ -34,6 +34,7 @@ export default function Profile() {
   useEffect(() => { load() }, [])
 
   const load = async () => {
+    // Driver session
     const driverSession = localStorage.getItem('agrized_driver')
     if (driverSession) {
       const ds = JSON.parse(driverSession)
@@ -47,39 +48,30 @@ export default function Profile() {
       const { data: deliveredOrders } = await supabase
         .from('orders')
         .select('id, total_zmw')
-        .eq('driver_id', driverData.id)
+        .eq('driver_id', ds.id)
         .eq('status', 'delivered')
         .gte('paid_at', today.toISOString())
 
       const totalCollected = (deliveredOrders || []).reduce((sum, o) => sum + parseFloat(o.total_zmw || 0), 0)
-      setDriver(driverData)
+      setDriver(driverData || { id: ds.id, name: ds.name, phone: ds.phone })
       setStats({ delivered: deliveredOrders?.length || 0, collected: totalCollected })
       setRole('driver')
       setLoading(false)
       return
     }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/onboarding'); return }
+    // Main session
+    const session = getSession()
+    if (!session) { router.push('/login'); return }
 
-    const rawPhone = user.phone || user.user_metadata?.phone
-    const phone = rawPhone ? rawPhone.replace('+', '') : null
+    setProfile(session)
+    setRole(session.role)
 
-    const { data: profileData } = await supabase
-      .from('users')
-      .select('id, workspace_id, display_name, role, phone_number')
-      .eq('phone_number', phone)
-      .single()
-
-    if (!profileData) { router.push('/setup'); return }
-    setProfile(profileData)
-    setRole(profileData.role)
-
-    if (profileData.role === 'customer') {
+    if (session.role === 'customer') {
       const { data: customerData } = await supabase
         .from('customers')
         .select('id, delivery_address, phone')
-        .eq('user_id', profileData.id)
+        .eq('user_id', session.id)
         .single()
       setCustomer(customerData)
       if (customerData?.delivery_address) {
@@ -97,18 +89,18 @@ export default function Profile() {
       setOrders(orderData || [])
     }
 
-    if (profileData.role === 'farmer') {
+    if (session.role === 'farmer') {
       const { data: farmerData } = await supabase
         .from('farmers')
         .select('id, farm_name, contact, produce_types, avatar_url, banner_url, districts(name)')
-        .eq('user_id', profileData.id)
+        .eq('user_id', session.id)
         .single()
       setFarmer(farmerData)
       setFarmName(farmerData?.farm_name || '')
       setContact(farmerData?.contact || '')
     }
 
-    if (profileData.role === 'admin') {
+    if (session.role === 'admin') {
       const { count: ordersToday } = await supabase
         .from('orders')
         .select('*', { count: 'exact', head: true })
@@ -123,11 +115,9 @@ export default function Profile() {
     setLoading(false)
   }
 
-  const handleSignOut = async () => {
-    localStorage.removeItem('agrized_driver')
-    localStorage.removeItem('agrized_cart')
-    await supabase.auth.signOut()
-    router.push('/')
+  const handleSignOut = () => {
+    clearSession()
+    router.push('/login')
   }
 
   const handleSaveAddress = async () => {
@@ -142,7 +132,6 @@ export default function Profile() {
   const handleSaveFarm = async () => {
     setSaving(true); setError(''); setSuccess('')
     await supabase.from('farmers').update({ farm_name: farmName, contact }).eq('id', farmer.id)
-    await supabase.from('users').update({ display_name: farmName }).eq('id', profile.id)
     setFarmer(prev => ({ ...prev, farm_name: farmName, contact }))
     setSaving(false); setSuccess('Farm details saved'); setEditingFarm(false)
     setTimeout(() => setSuccess(''), 2000)
@@ -483,11 +472,7 @@ export default function Profile() {
                 { label: 'Farmer approvals', emoji: '🌿', route: '/admin/farmers' },
                 { label: 'All orders',       emoji: '📦', route: '/admin/orders' },
               ].map(item => (
-                <div
-                  key={item.route}
-                  onClick={() => router.push(item.route)}
-                  style={{ background: '#fff', borderRadius: '16px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                >
+                <div key={item.route} onClick={() => router.push(item.route)} style={{ background: '#fff', borderRadius: '16px', padding: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <span style={{ fontSize: '20px' }}>{item.emoji}</span>
                     <p style={{ fontSize: '14px', fontWeight: '600', color: '#1a1a1a', margin: '0' }}>{item.label}</p>
@@ -499,13 +484,13 @@ export default function Profile() {
           </>
         )}
 
-        {/* ── SIGN OUT — all roles ── */}
+        {/* ── SIGN OUT ── */}
         <div onClick={handleSignOut} style={{ background: '#fff', borderRadius: '16px', padding: '14px', display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '8px' }}>
           <span style={{ fontSize: '20px' }}>🚪</span>
           <p style={{ fontSize: '14px', fontWeight: '600', color: '#E63946', margin: '0' }}>Sign out</p>
         </div>
 
-        <p style={{ fontSize: '11px', color: '#888', textAlign: 'center', margin: '12px 0 0' }}>Agrized v1.0</p>
+        <p style={{ fontSize: '11px', color: '#888', textAlign: 'center', margin: '12px 0 0' }}>Agrized v1.1</p>
 
       </div>
     </div>

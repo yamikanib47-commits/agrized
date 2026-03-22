@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase, formatPhone } from '@/lib/supabase'
+import { supabase, getSession, formatPhone } from '@/lib/supabase'
 import GuestWall from '@/app/components/GuestWall'
 
 export default function Checkout() {
@@ -24,33 +24,28 @@ export default function Checkout() {
       const guest = localStorage.getItem('agrized_guest') === 'true'
       if (guest) { setIsGuest(true); setPageLoading(false); return }
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/onboarding'); return }
+      const session = getSession()
+      if (!session) { router.push('/login'); return }
 
-      const rawPhone = user.phone || user.user_metadata?.phone
-      const p = rawPhone ? rawPhone.replace('+', '') : null
-      setPhone(p || '')
-
-      const { data: profile } = await supabase
-        .from('users')
-        .select('id, workspace_id')
-        .eq('phone_number', p)
-        .single()
-
-      if (!profile) { router.push('/setup'); return }
-      setWorkspaceId(profile.workspace_id)
+      setPhone(session.phone_number || '')
+      setWorkspaceId(session.workspace_id)
 
       let { data: customer } = await supabase
         .from('customers')
         .select('id, delivery_address, phone')
-        .eq('user_id', profile.id)
+        .eq('user_id', session.id)
         .single()
 
       if (!customer) {
         const { data: newCustomer } = await supabase
           .from('customers')
-          .insert({ workspace_id: profile.workspace_id, user_id: profile.id, phone: p })
-          .select().single()
+          .insert({
+            workspace_id: session.workspace_id,
+            user_id: session.id,
+            phone: session.phone_number
+          })
+          .select()
+          .single()
         customer = newCustomer
       }
 
@@ -94,7 +89,7 @@ export default function Checkout() {
 
     await supabase
       .from('customers')
-      .update({ delivery_address: deliveryAddress, phone: formatPhone(phone) })
+      .update({ delivery_address: deliveryAddress })
       .eq('id', customerId)
 
     const { data: order, error: orderError } = await supabase
@@ -158,7 +153,7 @@ export default function Checkout() {
         <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Delivery address</p>
         <div style={fieldWrap}><input placeholder="House / flat number & street" value={address} onChange={e => setAddress(e.target.value)} style={inputStyle}/></div>
         <div style={fieldWrap}><input placeholder="Area / suburb (e.g. Thornpark)" value={area} onChange={e => setArea(e.target.value)} style={inputStyle}/></div>
-        <div style={{ ...fieldWrap, marginBottom: '20px' }}><input placeholder="Landmark — optional (e.g. Near Shoprite Woodlands)" value={landmark} onChange={e => setLandmark(e.target.value)} style={inputStyle}/></div>
+        <div style={{ ...fieldWrap, marginBottom: '20px' }}><input placeholder="Landmark — optional" value={landmark} onChange={e => setLandmark(e.target.value)} style={inputStyle}/></div>
 
         <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contact number</p>
         <div style={{ ...fieldWrap, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>

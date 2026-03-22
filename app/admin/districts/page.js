@@ -8,23 +8,33 @@ export default function AdminDistricts() {
   const router = useRouter()
   const [districts, setDistricts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(null)
 
   useEffect(() => {
     const load = async () => {
+      const adminSession = localStorage.getItem('agrized_admin_session')
+      if (!adminSession) { router.push('/admin/login'); return }
+
       const { data } = await supabase
         .from('districts')
-        .select('id, name, slug, is_active, description')
+        .select('*')
         .order('name')
+
       setDistricts(data || [])
       setLoading(false)
     }
     load()
   }, [])
 
-  const toggleDistrict = async (id, current) => {
-    const updated = !current
-    setDistricts(prev => prev.map(d => d.id === id ? { ...d, is_active: updated } : d))
-    await supabase.from('districts').update({ is_active: updated }).eq('id', id)
+  const toggleDistrict = async (id, currentState) => {
+    setSaving(id)
+    await supabase
+      .from('districts')
+      .update({ is_active: !currentState })
+      .eq('id', id)
+
+    setDistricts(prev => prev.map(d => d.id === id ? { ...d, is_active: !currentState } : d))
+    setSaving(null)
   }
 
   return (
@@ -37,54 +47,36 @@ export default function AdminDistricts() {
           </div>
           <p style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: '700', color: '#1a1a1a', margin: '0' }}>Districts</p>
         </div>
-        <p style={{ fontSize: '13px', color: '#888', margin: '0 0 20px' }}>Toggle districts live — no code changes needed</p>
+        <p style={{ fontSize: '13px', color: '#888', margin: '0 0 8px' }}>Toggle which districts are active for deliveries</p>
+
+        <div style={{ background: '#FFF8E1', borderRadius: '12px', padding: '10px 14px', marginBottom: '16px' }}>
+          <p style={{ fontSize: '12px', color: '#F59E0B', margin: '0', fontWeight: '600' }}>
+            🌍 Only active districts appear in the farmer registration form
+          </p>
+        </div>
 
         {loading ? (
           <p style={{ textAlign: 'center', color: '#888', marginTop: '40px' }}>Loading...</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {districts.map(d => (
-              <div key={d.id} style={{ background: '#fff', borderRadius: '16px', padding: '16px', opacity: d.is_active ? 1 : 0.7 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <p style={{ fontSize: '16px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 2px' }}>{d.name}</p>
-                    <p style={{ fontSize: '12px', color: '#888', margin: '0' }}>{d.description || 'No description'}</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ background: d.is_active ? '#E8F5E9' : '#F5F0E8', borderRadius: '20px', padding: '3px 10px' }}>
-                      <span style={{ fontSize: '11px', color: d.is_active ? '#2D6A4F' : '#888', fontWeight: '600' }}>
-                        {d.is_active ? 'Live' : 'Inactive'}
-                      </span>
-                    </div>
-                    {/* Toggle */}
-                    <div
-                      onClick={() => toggleDistrict(d.id, d.is_active)}
-                      style={{
-                        width: '44px', height: '24px',
-                        background: d.is_active ? '#2D6A4F' : '#D8F3DC',
-                        borderRadius: '12px',
-                        position: 'relative',
-                        cursor: 'pointer',
-                        transition: 'background 0.2s'
-                      }}
-                    >
-                      <div style={{
-                        width: '20px', height: '20px',
-                        background: '#fff',
-                        borderRadius: '50%',
-                        position: 'absolute',
-                        top: '2px',
-                        left: d.is_active ? '22px' : '2px',
-                        transition: 'left 0.2s'
-                      }}/>
-                    </div>
-                  </div>
+            {districts.map(district => (
+              <div key={district.id} style={{ background: '#fff', borderRadius: '16px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 3px' }}>{district.name}</p>
+                  <p style={{ fontSize: '12px', color: '#888', margin: '0' }}>
+                    {district.is_active ? '✅ Active — visible to farmers' : '⭕ Inactive — hidden from farmers'}
+                  </p>
+                </div>
+                <div
+                  onClick={() => saving !== district.id && toggleDistrict(district.id, district.is_active)}
+                  style={{ width: '52px', height: '28px', background: district.is_active ? '#2D6A4F' : '#D8D8D8', borderRadius: '14px', position: 'relative', cursor: saving === district.id ? 'not-allowed' : 'pointer', transition: 'background 0.2s', flexShrink: 0 }}
+                >
+                  <div style={{ position: 'absolute', top: '4px', left: district.is_active ? '28px' : '4px', width: '20px', height: '20px', background: '#fff', borderRadius: '50%', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}></div>
                 </div>
               </div>
             ))}
           </div>
         )}
-
       </div>
       <AdminBottomNav active="districts" router={router} />
     </div>

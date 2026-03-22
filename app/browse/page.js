@@ -1,22 +1,23 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
+import { supabase, getSession } from '@/lib/supabase'
+import GuestBanner from '@/app/components/GuestBanner'
 
 export function CustomerBottomNav({ active, router, cartCount = 0 }) {
   const tabs = [
-    { key: 'home', label: 'Home', route: '/browse', icon: (a) => (
+    { key: 'home',    label: 'Home',    route: '/browse', icon: (a) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
         <path d="M3 10.5L11 3l8 7.5V19a1 1 0 01-1 1H4a1 1 0 01-1-1v-8.5z" fill={a ? '#2D6A4F' : 'none'} stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
       </svg>
     )},
-    { key: 'search', label: 'Search', route: '/browse/search', icon: (a) => (
+    { key: 'search',  label: 'Search',  route: '/browse/search', icon: (a) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
         <circle cx="10" cy="10" r="6" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
         <path d="M15 15l4 4" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     )},
-    { key: 'orders', label: 'Orders', route: '/orders', icon: (a) => (
+    { key: 'orders',  label: 'Orders',  route: '/orders', icon: (a) => (
       <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
         <rect x="3" y="4" width="16" height="15" rx="2" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
         <path d="M3 9h16" stroke={a ? '#2D6A4F' : '#888'} strokeWidth="1.5"/>
@@ -48,13 +49,13 @@ export function CustomerBottomNav({ active, router, cartCount = 0 }) {
 }
 
 const CATEGORIES = [
-  { key: 'all', label: 'All', emoji: '🌿' },
-  { key: 'Vegetables', label: 'Vegetables', emoji: '🥬' },
-  { key: 'Fruit', label: 'Fruit', emoji: '🍊' },
-  { key: 'Animal Produce', label: 'Animal', emoji: '🥚' },
-  { key: 'Grain', label: 'Grain', emoji: '🌾' },
-  { key: 'Legume', label: 'Legume', emoji: '🫘' },
-  { key: 'Herbs', label: 'Herbs', emoji: '🌿' },
+  { key: 'all',            label: 'All',      emoji: '🌿' },
+  { key: 'Vegetables',     label: 'Vegetables', emoji: '🥬' },
+  { key: 'Fruit',          label: 'Fruit',    emoji: '🍊' },
+  { key: 'Animal Produce', label: 'Animal',   emoji: '🥚' },
+  { key: 'Grain',          label: 'Grain',    emoji: '🌾' },
+  { key: 'Legume',         label: 'Legume',   emoji: '🫘' },
+  { key: 'Herbs',          label: 'Herbs',    emoji: '🌿' },
 ]
 
 const categoryEmoji = (cat) => {
@@ -71,33 +72,21 @@ export default function Browse() {
   const router = useRouter()
   const [produce, setProduce] = useState([])
   const [category, setCategory] = useState('all')
-  const [search, setSearch] = useState('')
   const [cart, setCart] = useState({})
   const [loading, setLoading] = useState(true)
-  const [displayName, setDisplayName] = useState('')
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/onboarding'); return }
+      const guest = localStorage.getItem('agrized_guest') === 'true'
 
-      const rawPhone = user.phone || user.user_metadata?.phone
-      const phone = rawPhone ? rawPhone.replace('+', '') : null
+      if (!guest) {
+        const session = getSession()
+        if (!session) { router.push('/login'); return }
+        if (session.role === 'farmer') { router.push('/farmer/dashboard'); return }
+        if (session.role === 'admin')  { router.push('/admin'); return }
+        if (session.role === 'driver') { router.push('/driver'); return }
+      }
 
-      const { data: profile } = await supabase
-        .from('users')
-        .select('id, workspace_id, display_name, role')
-        .eq('phone_number', phone)
-        .single()
-
-      if (!profile?.workspace_id) { router.push('/setup'); return }
-      if (profile.role === 'farmer') { router.push('/farmer/dashboard'); return }
-      if (profile.role === 'admin') { router.push('/admin'); return }
-      if (profile.role === 'driver') { router.push('/driver'); return }
-
-      setDisplayName(profile.display_name || '')
-
-      // Load saved cart from localStorage
       const savedCart = localStorage.getItem('agrized_cart')
       if (savedCart) setCart(JSON.parse(savedCart))
 
@@ -113,27 +102,20 @@ export default function Browse() {
     load()
   }, [])
 
-  const saveCart = (newCart) => {
+  const addToCart = (item) => {
+    const newCart = { ...cart, [item.id]: (cart[item.id] || 0) + 1 }
     setCart(newCart)
     localStorage.setItem('agrized_cart', JSON.stringify(newCart))
   }
 
-  const addToCart = (item) => {
-    const newCart = { ...cart, [item.id]: (cart[item.id] || 0) + 1 }
-    saveCart(newCart)
-  }
-
   const cartCount = Object.values(cart).reduce((a, b) => a + b, 0)
 
-  const filtered = produce.filter(p => {
-    const matchCat = category === 'all' || p.category === category
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.farmers?.farm_name?.toLowerCase().includes(search.toLowerCase())
-    return matchCat && matchSearch
-  })
+  const filtered = produce.filter(p => category === 'all' || p.category === category)
 
   return (
     <div style={{ minHeight: '100vh', background: '#F5F0E8', paddingBottom: '90px' }}>
+
+      <GuestBanner />
 
       {/* Location bar */}
       <div style={{ padding: '52px 16px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -156,34 +138,25 @@ export default function Browse() {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search bar */}
       <div style={{ padding: '0 16px', marginBottom: '14px' }}>
-        <div style={{ background: '#fff', borderRadius: '24px', padding: '11px 16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div onClick={() => router.push('/browse/search')} style={{ background: '#fff', borderRadius: '24px', padding: '11px 16px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="5" stroke="#888" strokeWidth="1.5"/><path d="M11 11l3 3" stroke="#888" strokeWidth="1.5" strokeLinecap="round"/></svg>
-          <input
-            placeholder="Search produce, farms..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: '14px', color: '#1a1a1a' }}
-          />
+          <span style={{ fontSize: '14px', color: '#888' }}>Search produce, farms...</span>
         </div>
       </div>
 
       {/* Category chips */}
       <div style={{ padding: '0 16px', display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '4px' }}>
         {CATEGORIES.map(c => (
-          <button
-            key={c.key}
-            onClick={() => setCategory(c.key)}
-            style={{ background: category === c.key ? '#2D6A4F' : '#fff', color: category === c.key ? '#fff' : '#888', border: 'none', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '4px' }}
-          >
-            <span style={{ fontSize: '12px' }}>{c.emoji}</span> {c.label}
+          <button key={c.key} onClick={() => setCategory(c.key)} style={{ background: category === c.key ? '#2D6A4F' : '#fff', color: category === c.key ? '#fff' : '#888', border: 'none', borderRadius: '20px', padding: '6px 14px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            {c.emoji} {c.label}
           </button>
         ))}
       </div>
 
       {/* Hero banner */}
-      {category === 'all' && !search && (
+      {category === 'all' && (
         <div style={{ margin: '0 16px 20px', background: '#2D6A4F', borderRadius: '20px', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <p style={{ fontSize: '11px', color: '#D8F3DC', margin: '0 0 4px', fontWeight: '600' }}>FREE DELIVERY 🚚</p>
@@ -215,18 +188,15 @@ export default function Browse() {
       ) : (
         <div style={{ padding: '0 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
           {filtered.map(item => (
-            <div key={item.id} style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden', cursor: 'pointer' }}>
-              <div
-                onClick={() => router.push('/browse/' + item.id)}
-                style={{ height: '90px', background: item.image_url ? 'transparent' : categoryBg(item.category), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', overflow: 'hidden' }}
-              >
+            <div key={item.id} style={{ background: '#fff', borderRadius: '16px', overflow: 'hidden' }}>
+              <div onClick={() => router.push('/browse/' + item.id)} style={{ height: '90px', background: item.image_url ? 'transparent' : categoryBg(item.category), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', overflow: 'hidden', cursor: 'pointer' }}>
                 {item.image_url
                   ? <img src={item.image_url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
                   : categoryEmoji(item.category)
                 }
               </div>
               <div style={{ padding: '10px 10px 12px' }}>
-                <p onClick={() => router.push('/browse/' + item.id)} style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 3px' }}>{item.name}</p>
+                <p onClick={() => router.push('/browse/' + item.id)} style={{ fontSize: '14px', fontWeight: '700', color: '#1a1a1a', margin: '0 0 3px', cursor: 'pointer' }}>{item.name}</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
                   <div style={{ width: '6px', height: '6px', background: '#2D6A4F', borderRadius: '50%' }}></div>
                   <span style={{ fontSize: '10px', color: '#888' }}>{item.farmers?.farm_name || 'Agrized Farm'}</span>
@@ -236,10 +206,7 @@ export default function Browse() {
                     K {parseFloat(item.price_zmw).toFixed(2)}
                     <span style={{ fontSize: '10px', color: '#888', fontWeight: '400' }}>/{item.unit}</span>
                   </p>
-                  <button
-                    onClick={() => addToCart(item)}
-                    style={{ width: '28px', height: '28px', background: cart[item.id] ? '#52B788' : '#2D6A4F', border: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
-                  >
+                  <button onClick={() => addToCart(item)} style={{ width: '28px', height: '28px', background: cart[item.id] ? '#52B788' : '#2D6A4F', border: 'none', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
                     <span style={{ fontSize: '16px', color: '#fff', lineHeight: 1 }}>{cart[item.id] ? cart[item.id] : '+'}</span>
                   </button>
                 </div>
